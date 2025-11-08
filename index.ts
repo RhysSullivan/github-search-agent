@@ -1,12 +1,24 @@
 import { stepCountIs, streamText } from "ai";
 import { gateway } from "@ai-sdk/gateway";
+import { experimental_createMCPClient } from "@ai-sdk/mcp";
 import { githubSearchTool } from "./src/tools/search-github";
+import { githubApiTools } from "./src/tools/github-api";
 import { sandboxTools } from "./src/tools/sandbox";
 
 // Main agent function
 async function generateResponse(userQuery: string) {
   try {
-    const systemPrompt = `You are a GitHub search expert. Your goal is to help users find information on GitHub.
+    const systemPrompt = `You are a GitHub search expert. Your goal is to help users find information on GitHub and answer questions about their own GitHub activity.
+
+CRITICAL: RESPONSE STYLE
+- Be as concise as possible - provide direct answers without unnecessary elaboration
+- Answer the question directly without asking follow-up questions
+- If you need clarification, make reasonable assumptions and proceed rather than asking
+- Get straight to the point - avoid verbose explanations unless necessary
+- Markdown formatting is fully supported - you can use code blocks, tables, lists, headers, and other markdown elements to format your responses clearly
+- Use code blocks (\`\`\`language) for code snippets to improve readability
+- Use tables to present structured data or comparisons
+- Use lists and headers to organize information hierarchically
 
 CRITICAL: SOURCE CITATION REQUIREMENTS
 - ALWAYS cite specific sources when providing information. For each fact or claim, include:
@@ -45,6 +57,22 @@ SEARCH STRATEGY:
    - Try broader searches first, then narrow down
 
 5. Always search both code AND issues when looking for functionality - issues often contain discussions about missing features or workarounds.
+
+GREP.APP MCP TOOLS (for faster code search):
+You have access to grep.app MCP tools which provide a lighter weight, faster version of GitHub code search. These tools are optimized for speed but have limitations:
+- Limited to approximately ~1 million public repositories (not all of GitHub)
+- Faster response times compared to regular GitHub search
+- Best for searching common, popular repositories
+- Use when you need quick code pattern searches across well-known repos
+- If grep.app search doesn't find results, fall back to the regular githubSearch tool which searches the full GitHub index
+
+GITHUB API TOOLS (for user-specific queries):
+When users ask about their own GitHub activity (e.g., "What are my PRs?", "What issues did I create?"), use the GitHub API tools:
+- getGitHubUser: Get information about the authenticated user
+- getUserPullRequests: Get PRs created by the user. Use includeCIStatus=true to check for CI failures
+- getPullRequestDetails: Get detailed information about a specific PR including CI status
+- getUserIssues: Get issues created by the user
+- getUserRepositories: Get repositories owned by or contributed to by the user
 
 SANDBOX TOOLS (for deep code exploration):
 When standard GitHub search doesn't provide enough detail, you can use sandbox tools to explore repositories directly. Sandboxes are automatically created and managed - you don't need to create or stop them manually.
@@ -99,17 +127,41 @@ CRITICAL: Always investigate the root cause of errors by reading relevant config
 
 Always be thorough and search systematically. Don't give up after one or two searches - explore the repository structure, codebase, and issues.`;
 
+    // Create MCP client for grep.app (lighter weight, faster GitHub code search)
+    // Limited to ~1 million public repos but faster than regular GitHub search
+    const grepAppMCPClient = await experimental_createMCPClient({
+      name: "grep-app",
+      transport: {
+        type: "http",
+        url: "https://mcp.grep.app",
+      },
+    });
+
+    // Get tools from grep.app MCP client
+    const grepAppTools = await grepAppMCPClient.tools();
+
     const result = streamText({
       model: gateway("openai/gpt-4o-mini"),
       system: systemPrompt,
       prompt: userQuery,
       tools: {
         githubSearch: githubSearchTool,
+        getGitHubUser: githubApiTools.getGitHubUser,
+        getUserPullRequests: githubApiTools.getUserPullRequests,
+        getPullRequestDetails: githubApiTools.getPullRequestDetails,
+        getUserIssues: githubApiTools.getUserIssues,
+        getUserRepositories: githubApiTools.getUserRepositories,
         runSandboxCommand: sandboxTools.runCommand,
         listSandboxFiles: sandboxTools.listFiles,
         readSandboxFile: sandboxTools.readFile,
         searchSandboxFiles: sandboxTools.searchFiles,
         searchCommandOutput: sandboxTools.searchCommandOutput,
+        ...Object.fromEntries(
+          Object.entries(grepAppTools).map(([key, value]) => [
+            `grep${key}`,
+            value,
+          ])
+        ),
       },
       stopWhen: stepCountIs(150),
       onError: (error) => {

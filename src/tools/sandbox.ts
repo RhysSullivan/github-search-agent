@@ -24,6 +24,53 @@ interface CommandOutput {
 const sandboxByChatId = new Map<string, SandboxInfo>();
 const commandOutputsByChatId = new Map<string, CommandOutput[]>();
 
+// Helper to check if sandbox is still alive by attempting a simple operation
+async function isSandboxAlive(sandbox: Sandbox): Promise<boolean> {
+  try {
+    // Try a simple command to check if sandbox is alive
+    const result = await sandbox.runCommand({ cmd: "echo", args: ["test"] });
+    await result.stdout();
+    return true;
+  } catch (error: any) {
+    // If we get a 400 or similar error, sandbox is likely dead
+    if (error.message?.includes("400") || error.message?.includes("not ok")) {
+      return false;
+    }
+    // For other errors, assume sandbox might still be alive
+    return true;
+  }
+}
+
+// Helper to check if an error indicates a dead sandbox
+function isSandboxDeadError(error: any): boolean {
+  return (
+    error.message?.includes("400") ||
+    error.message?.includes("not ok") ||
+    error.message?.includes("Status code")
+  );
+}
+
+// Helper to handle dead sandbox cleanup and retry
+async function handleDeadSandbox(
+  chatId: string,
+  repositoryUrl?: string
+): Promise<string | undefined> {
+  const existing = sandboxByChatId.get(chatId);
+  if (existing) {
+    try {
+      await existing.sandbox.stop();
+    } catch (stopError) {
+      // Ignore errors stopping dead sandbox
+    }
+    sandboxByChatId.delete(chatId);
+    // Return repositoryUrl from dead sandbox if not provided
+    if (!repositoryUrl && existing.repositoryUrl) {
+      return existing.repositoryUrl;
+    }
+  }
+  return repositoryUrl;
+}
+
 // Helper to get or create sandbox for a chat ID
 async function getOrCreateSandbox(
   chatId: string,
@@ -31,7 +78,9 @@ async function getOrCreateSandbox(
 ): Promise<Sandbox> {
   const existing = sandboxByChatId.get(chatId);
 
-  // If sandbox exists and no new URL provided, return existing
+  // If sandbox exists and no new URL provided, return it
+  // We'll rely on retry logic in tools to handle dead sandboxes
+  // This avoids adding latency with health checks on every access
   if (existing && !repositoryUrl) {
     return existing.sandbox;
   }
@@ -222,81 +271,118 @@ export const runSandboxCommandTool = tool({
     workingDirectory,
     maxOutputLines,
   }) => {
-    try {
-      const sandbox = await getOrCreateSandbox(chatId, repositoryUrl);
+    let retryCount = 0;
+    const maxRetries = 1;
 
-      // Build command execution
-      const cmd = sudo ? "sudo" : command;
-      const cmdArgs = sudo ? [command, ...args] : args;
+    while (retryCount <= maxRetries) {
+      try {
+        // Get repositoryUrl from existing sandbox if not provided
+        let actualRepositoryUrl = repositoryUrl;
+        if (!actualRepositoryUrl) {
+          const existing = sandboxByChatId.get(chatId);
+          if (existing) {
+            actualRepositoryUrl = existing.repositoryUrl;
+          }
+        }
 
-      let fullCommand: string;
-      let result: any;
+        const sandbox = await getOrCreateSandbox(chatId, actualRepositoryUrl);
 
-      // Change directory if specified
-      if (workingDirectory) {
-        // Use sh -c to change directory first
-        fullCommand = `cd ${workingDirectory} && ${command} ${args.join(" ")}`;
-        result = await sandbox.runCommand({
-          cmd: sudo ? "sudo" : "sh",
-          args: sudo ? ["-c", fullCommand] : ["-c", fullCommand],
-          sudo,
+        // Build command execution
+        const cmd = sudo ? "sudo" : command;
+        const cmdArgs = sudo ? [command, ...args] : args;
+
+        let fullCommand: string;
+        let result: any;
+
+        // Change directory if specified
+        if (workingDirectory) {
+          // Use sh -c to change directory first
+          fullCommand = `cd ${workingDirectory} && ${command} ${args.join(
+            " "
+          )}`;
+          result = await sandbox.runCommand({
+            cmd: sudo ? "sudo" : "sh",
+            args: sudo ? ["-c", fullCommand] : ["-c", fullCommand],
+            sudo,
+          });
+        } else {
+          fullCommand = `${cmd} ${cmdArgs.join(" ")}`;
+          result = await sandbox.runCommand({
+            cmd,
+            args: cmdArgs,
+            sudo,
+          });
+        }
+
+        const stdout = await result.stdout();
+        const stderr = await result.stderr();
+        const stdoutStr = stdout || "";
+        const stderrStr = stderr || "";
+
+        // Generate command ID
+        const commandId = `${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 11)}`;
+
+        // Store full output
+        if (!commandOutputsByChatId.has(chatId)) {
+          commandOutputsByChatId.set(chatId, []);
+        }
+        const outputs = commandOutputsByChatId.get(chatId)!;
+        outputs.push({
+          commandId,
+          command: fullCommand,
+          stdout: stdoutStr,
+          stderr: stderrStr,
+          exitCode: result.exitCode,
+          timestamp: Date.now(),
         });
-      } else {
-        fullCommand = `${cmd} ${cmdArgs.join(" ")}`;
-        result = await sandbox.runCommand({
-          cmd,
-          args: cmdArgs,
-          sudo,
-        });
+
+        // Truncate output for response
+        const stdoutSummary = truncateOutput(stdoutStr, maxOutputLines);
+        const stderrSummary = truncateOutput(stderrStr, maxOutputLines);
+
+        return {
+          success: result.exitCode === 0,
+          exitCode: result.exitCode,
+          command: fullCommand,
+          commandId,
+          stdout: stdoutSummary.truncated,
+          stdoutLines: stdoutSummary.totalLines,
+          stdoutTruncated: stdoutSummary.isTruncated,
+          stderr: stderrSummary.truncated,
+          stderrLines: stderrSummary.totalLines,
+          stderrTruncated: stderrSummary.isTruncated,
+          message:
+            stdoutSummary.isTruncated || stderrSummary.isTruncated
+              ? `Output truncated. Use searchCommandOutput with commandId "${commandId}" to search the full output.`
+              : undefined,
+        };
+      } catch (error: any) {
+        // Check if this is a sandbox death error (400 or similar)
+        if (isSandboxDeadError(error) && retryCount < maxRetries) {
+          console.error(
+            `[Sandbox] Sandbox appears dead, removing from cache and retrying (attempt ${
+              retryCount + 1
+            }/${maxRetries + 1})`
+          );
+          // Remove dead sandbox and get repositoryUrl for retry
+          const retryRepositoryUrl = await handleDeadSandbox(
+            chatId,
+            repositoryUrl
+          );
+          if (retryRepositoryUrl) {
+            repositoryUrl = retryRepositoryUrl;
+          }
+          retryCount++;
+          continue;
+        }
+
+        throw new Error(`Failed to run command: ${error.message}`);
       }
-
-      const stdout = await result.stdout();
-      const stderr = await result.stderr();
-      const stdoutStr = stdout || "";
-      const stderrStr = stderr || "";
-
-      // Generate command ID
-      const commandId = `${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 11)}`;
-
-      // Store full output
-      if (!commandOutputsByChatId.has(chatId)) {
-        commandOutputsByChatId.set(chatId, []);
-      }
-      const outputs = commandOutputsByChatId.get(chatId)!;
-      outputs.push({
-        commandId,
-        command: fullCommand,
-        stdout: stdoutStr,
-        stderr: stderrStr,
-        exitCode: result.exitCode,
-        timestamp: Date.now(),
-      });
-
-      // Truncate output for response
-      const stdoutSummary = truncateOutput(stdoutStr, maxOutputLines);
-      const stderrSummary = truncateOutput(stderrStr, maxOutputLines);
-
-      return {
-        success: result.exitCode === 0,
-        exitCode: result.exitCode,
-        command: fullCommand,
-        commandId,
-        stdout: stdoutSummary.truncated,
-        stdoutLines: stdoutSummary.totalLines,
-        stdoutTruncated: stdoutSummary.isTruncated,
-        stderr: stderrSummary.truncated,
-        stderrLines: stderrSummary.totalLines,
-        stderrTruncated: stderrSummary.isTruncated,
-        message:
-          stdoutSummary.isTruncated || stderrSummary.isTruncated
-            ? `Output truncated. Use searchCommandOutput with commandId "${commandId}" to search the full output.`
-            : undefined,
-      };
-    } catch (error: any) {
-      throw new Error(`Failed to run command: ${error.message}`);
     }
+
+    throw new Error(`Failed to run command after ${maxRetries + 1} attempts`);
   },
 });
 
@@ -331,35 +417,69 @@ export const listSandboxFilesTool = tool({
     })
   ),
   execute: async ({ chatId, repositoryUrl, path, recursive }) => {
-    try {
-      const sandbox = await getOrCreateSandbox(chatId, repositoryUrl);
+    let retryCount = 0;
+    const maxRetries = 1;
 
-      const command = recursive ? "find" : "ls";
-      const args = recursive
-        ? [path, "-type", "f", "-o", "-type", "d"]
-        : ["-la", path];
+    while (retryCount <= maxRetries) {
+      try {
+        // Get repositoryUrl from existing sandbox if not provided
+        let actualRepositoryUrl = repositoryUrl;
+        if (!actualRepositoryUrl) {
+          const existing = sandboxByChatId.get(chatId);
+          if (existing) {
+            actualRepositoryUrl = existing.repositoryUrl;
+          }
+        }
 
-      const result = await sandbox.runCommand({
-        cmd: command,
-        args,
-      });
+        const sandbox = await getOrCreateSandbox(chatId, actualRepositoryUrl);
 
-      const stdout = await result.stdout();
-      const stderr = await result.stderr();
+        const command = recursive ? "find" : "ls";
+        const args = recursive
+          ? [path, "-type", "f", "-o", "-type", "d"]
+          : ["-la", path];
 
-      if (result.exitCode !== 0) {
-        throw new Error(`Failed to list files: ${stderr}`);
+        const result = await sandbox.runCommand({
+          cmd: command,
+          args,
+        });
+
+        const stdout = await result.stdout();
+        const stderr = await result.stderr();
+
+        if (result.exitCode !== 0) {
+          throw new Error(`Failed to list files: ${stderr}`);
+        }
+
+        return {
+          success: true,
+          path,
+          recursive,
+          output: stdout || "",
+        };
+      } catch (error: any) {
+        // Check if this is a sandbox death error
+        if (isSandboxDeadError(error) && retryCount < maxRetries) {
+          console.error(
+            `[Sandbox] Sandbox appears dead, removing from cache and retrying (attempt ${
+              retryCount + 1
+            }/${maxRetries + 1})`
+          );
+          const retryRepositoryUrl = await handleDeadSandbox(
+            chatId,
+            repositoryUrl
+          );
+          if (retryRepositoryUrl) {
+            repositoryUrl = retryRepositoryUrl;
+          }
+          retryCount++;
+          continue;
+        }
+
+        throw new Error(`Failed to list files: ${error.message}`);
       }
-
-      return {
-        success: true,
-        path,
-        recursive,
-        output: stdout || "",
-      };
-    } catch (error: any) {
-      throw new Error(`Failed to list files: ${error.message}`);
     }
+
+    throw new Error(`Failed to list files after ${maxRetries + 1} attempts`);
   },
 });
 
@@ -389,29 +509,63 @@ export const readSandboxFileTool = tool({
     })
   ),
   execute: async ({ chatId, repositoryUrl, filePath }) => {
-    try {
-      const sandbox = await getOrCreateSandbox(chatId, repositoryUrl);
+    let retryCount = 0;
+    const maxRetries = 1;
 
-      const result = await sandbox.runCommand({
-        cmd: "cat",
-        args: [filePath],
-      });
+    while (retryCount <= maxRetries) {
+      try {
+        // Get repositoryUrl from existing sandbox if not provided
+        let actualRepositoryUrl = repositoryUrl;
+        if (!actualRepositoryUrl) {
+          const existing = sandboxByChatId.get(chatId);
+          if (existing) {
+            actualRepositoryUrl = existing.repositoryUrl;
+          }
+        }
 
-      const stdout = await result.stdout();
-      const stderr = await result.stderr();
+        const sandbox = await getOrCreateSandbox(chatId, actualRepositoryUrl);
 
-      if (result.exitCode !== 0) {
-        throw new Error(`Failed to read file: ${stderr}`);
+        const result = await sandbox.runCommand({
+          cmd: "cat",
+          args: [filePath],
+        });
+
+        const stdout = await result.stdout();
+        const stderr = await result.stderr();
+
+        if (result.exitCode !== 0) {
+          throw new Error(`Failed to read file: ${stderr}`);
+        }
+
+        return {
+          success: true,
+          filePath,
+          content: stdout || "",
+        };
+      } catch (error: any) {
+        // Check if this is a sandbox death error
+        if (isSandboxDeadError(error) && retryCount < maxRetries) {
+          console.error(
+            `[Sandbox] Sandbox appears dead, removing from cache and retrying (attempt ${
+              retryCount + 1
+            }/${maxRetries + 1})`
+          );
+          const retryRepositoryUrl = await handleDeadSandbox(
+            chatId,
+            repositoryUrl
+          );
+          if (retryRepositoryUrl) {
+            repositoryUrl = retryRepositoryUrl;
+          }
+          retryCount++;
+          continue;
+        }
+
+        throw new Error(`Failed to read file: ${error.message}`);
       }
-
-      return {
-        success: true,
-        filePath,
-        content: stdout || "",
-      };
-    } catch (error: any) {
-      throw new Error(`Failed to read file: ${error.message}`);
     }
+
+    throw new Error(`Failed to read file after ${maxRetries + 1} attempts`);
   },
 });
 
@@ -469,154 +623,188 @@ export const searchSandboxFilesTool = tool({
     includeLineNumbers,
     filePattern,
   }) => {
-    try {
-      const sandbox = await getOrCreateSandbox(chatId, repositoryUrl);
+    let retryCount = 0;
+    const maxRetries = 1;
 
-      // Build grep command
-      const grepArgs: string[] = [];
-      if (!caseSensitive) {
-        grepArgs.push("-i");
-      }
-      if (includeLineNumbers) {
-        grepArgs.push("-n");
-      }
-      grepArgs.push("-r");
-      grepArgs.push(pattern);
-      grepArgs.push(path);
-
-      // If file pattern specified, use find + grep
-      if (filePattern) {
-        const findResult = await sandbox.runCommand({
-          cmd: "find",
-          args: [path, "-type", "f", "-name", filePattern],
-        });
-
-        const findStdout = await findResult.stdout();
-        const findStderr = await findResult.stderr();
-
-        if (findResult.exitCode !== 0) {
-          throw new Error(`Failed to find files: ${findStderr}`);
+    while (retryCount <= maxRetries) {
+      try {
+        // Get repositoryUrl from existing sandbox if not provided
+        let actualRepositoryUrl = repositoryUrl;
+        if (!actualRepositoryUrl) {
+          const existing = sandboxByChatId.get(chatId);
+          if (existing) {
+            actualRepositoryUrl = existing.repositoryUrl;
+          }
         }
 
-        const files = findStdout
-          .split("\n")
-          .filter((f: string) => f.trim())
-          .map((f: string) => f.trim());
+        const sandbox = await getOrCreateSandbox(chatId, actualRepositoryUrl);
 
-        if (files.length === 0) {
+        // Build grep command
+        const grepArgs: string[] = [];
+        if (!caseSensitive) {
+          grepArgs.push("-i");
+        }
+        if (includeLineNumbers) {
+          grepArgs.push("-n");
+        }
+        grepArgs.push("-r");
+        grepArgs.push(pattern);
+        grepArgs.push(path);
+
+        // If file pattern specified and not "*" (which means all files), use find + grep
+        if (filePattern && filePattern !== "*") {
+          const findResult = await sandbox.runCommand({
+            cmd: "find",
+            args: [path, "-type", "f", "-name", filePattern],
+          });
+
+          const findStdout = await findResult.stdout();
+          const findStderr = await findResult.stderr();
+
+          if (findResult.exitCode !== 0) {
+            throw new Error(`Failed to find files: ${findStderr}`);
+          }
+
+          const files = findStdout
+            .split("\n")
+            .filter((f: string) => f.trim())
+            .map((f: string) => f.trim());
+
+          if (files.length === 0) {
+            return {
+              success: true,
+              pattern,
+              path,
+              matches: [],
+              message: `No files matching pattern '${filePattern}' found`,
+            };
+          }
+
+          // Search each file
+          const allMatches: Array<{
+            file: string;
+            line: string;
+            lineNumber?: number;
+          }> = [];
+
+          for (const file of files) {
+            const grepResult = await sandbox.runCommand({
+              cmd: "grep",
+              args: [
+                ...(caseSensitive ? [] : ["-i"]),
+                ...(includeLineNumbers ? ["-n"] : []),
+                pattern,
+                file,
+              ],
+            });
+
+            const grepStdout = await grepResult.stdout();
+
+            if (grepResult.exitCode === 0 && grepStdout) {
+              const lines = grepStdout
+                .split("\n")
+                .filter((l: string) => l.trim());
+              for (const line of lines) {
+                if (includeLineNumbers) {
+                  const match = line.match(/^(\d+):(.*)$/);
+                  if (match && match[1] && match[2]) {
+                    allMatches.push({
+                      file,
+                      line: match[2],
+                      lineNumber: parseInt(match[1]),
+                    });
+                  } else {
+                    allMatches.push({ file, line });
+                  }
+                } else {
+                  allMatches.push({ file, line });
+                }
+              }
+            }
+          }
+
           return {
             success: true,
             pattern,
             path,
-            matches: [],
-            message: `No files matching pattern '${filePattern}' found`,
+            filePattern,
+            matches: allMatches,
+            matchCount: allMatches.length,
           };
-        }
-
-        // Search each file
-        const allMatches: Array<{
-          file: string;
-          line: string;
-          lineNumber?: number;
-        }> = [];
-
-        for (const file of files) {
-          const grepResult = await sandbox.runCommand({
+        } else {
+          // Simple grep
+          const result = await sandbox.runCommand({
             cmd: "grep",
-            args: [
-              ...(caseSensitive ? [] : ["-i"]),
-              ...(includeLineNumbers ? ["-n"] : []),
-              pattern,
-              file,
-            ],
+            args: grepArgs,
           });
 
-          const grepStdout = await grepResult.stdout();
+          const stdout = await result.stdout();
+          const stderr = await result.stderr();
 
-          if (grepResult.exitCode === 0 && grepStdout) {
-            const lines = grepStdout
-              .split("\n")
-              .filter((l: string) => l.trim());
+          // grep returns exit code 1 when no matches found, which is normal
+          if (result.exitCode !== 0 && result.exitCode !== 1) {
+            throw new Error(`Failed to search files: ${stderr}`);
+          }
+
+          const matches: Array<{
+            file: string;
+            line: string;
+            lineNumber?: number;
+          }> = [];
+
+          if (stdout) {
+            const lines = stdout.split("\n").filter((l: string) => l.trim());
             for (const line of lines) {
               if (includeLineNumbers) {
-                const match = line.match(/^(\d+):(.*)$/);
-                if (match && match[1] && match[2]) {
-                  allMatches.push({
-                    file,
-                    line: match[2],
-                    lineNumber: parseInt(match[1]),
+                // Format: file:lineNumber:content
+                const match = line.match(/^([^:]+):(\d+):(.*)$/);
+                if (match && match[1] && match[2] && match[3]) {
+                  matches.push({
+                    file: match[1],
+                    line: match[3],
+                    lineNumber: parseInt(match[2]),
                   });
                 } else {
-                  allMatches.push({ file, line });
+                  matches.push({ file: path, line });
                 }
-              } else {
-                allMatches.push({ file, line });
-              }
-            }
-          }
-        }
-
-        return {
-          success: true,
-          pattern,
-          path,
-          filePattern,
-          matches: allMatches,
-          matchCount: allMatches.length,
-        };
-      } else {
-        // Simple grep
-        const result = await sandbox.runCommand({
-          cmd: "grep",
-          args: grepArgs,
-        });
-
-        const stdout = await result.stdout();
-        const stderr = await result.stderr();
-
-        // grep returns exit code 1 when no matches found, which is normal
-        if (result.exitCode !== 0 && result.exitCode !== 1) {
-          throw new Error(`Failed to search files: ${stderr}`);
-        }
-
-        const matches: Array<{
-          file: string;
-          line: string;
-          lineNumber?: number;
-        }> = [];
-
-        if (stdout) {
-          const lines = stdout.split("\n").filter((l: string) => l.trim());
-          for (const line of lines) {
-            if (includeLineNumbers) {
-              // Format: file:lineNumber:content
-              const match = line.match(/^([^:]+):(\d+):(.*)$/);
-              if (match && match[1] && match[2] && match[3]) {
-                matches.push({
-                  file: match[1],
-                  line: match[3],
-                  lineNumber: parseInt(match[2]),
-                });
               } else {
                 matches.push({ file: path, line });
               }
-            } else {
-              matches.push({ file: path, line });
             }
           }
+
+          return {
+            success: true,
+            pattern,
+            path,
+            matches,
+            matchCount: matches.length,
+          };
+        }
+      } catch (error: any) {
+        // Check if this is a sandbox death error
+        if (isSandboxDeadError(error) && retryCount < maxRetries) {
+          console.error(
+            `[Sandbox] Sandbox appears dead, removing from cache and retrying (attempt ${
+              retryCount + 1
+            }/${maxRetries + 1})`
+          );
+          const retryRepositoryUrl = await handleDeadSandbox(
+            chatId,
+            repositoryUrl
+          );
+          if (retryRepositoryUrl) {
+            repositoryUrl = retryRepositoryUrl;
+          }
+          retryCount++;
+          continue;
         }
 
-        return {
-          success: true,
-          pattern,
-          path,
-          matches,
-          matchCount: matches.length,
-        };
+        throw new Error(`Failed to search files: ${error.message}`);
       }
-    } catch (error: any) {
-      throw new Error(`Failed to search files: ${error.message}`);
     }
+
+    throw new Error(`Failed to search files after ${maxRetries + 1} attempts`);
   },
 });
 

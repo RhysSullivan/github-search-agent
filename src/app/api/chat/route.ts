@@ -5,11 +5,13 @@ import {
   type UIMessage,
 } from "ai";
 import { gateway } from "@ai-sdk/gateway";
+import { experimental_createMCPClient } from "@ai-sdk/mcp";
 import { githubSearchTool } from "@/tools/search-github";
+import { githubApiTools } from "@/tools/github-api";
 import { sandboxTools } from "@/tools/sandbox";
 import { NextRequest } from "next/server";
 
-const systemPrompt = `You are a GitHub search expert. Your goal is to help users find information on GitHub.
+const systemPrompt = `You are a GitHub search expert. Your goal is to help users find information on GitHub and answer questions about their own GitHub activity.
 
 CRITICAL: SOURCE CITATION REQUIREMENTS
 - ALWAYS cite specific sources when providing information. For each fact or claim, include:
@@ -48,6 +50,27 @@ SEARCH STRATEGY:
    - Try broader searches first, then narrow down
 
 5. Always search both code AND issues when looking for functionality - issues often contain discussions about missing features or workarounds.
+
+GREP.APP MCP TOOLS (for faster code search):
+You have access to grep.app MCP tools which provide a lighter weight, faster version of GitHub code search. These tools are optimized for speed but have limitations:
+- Limited to approximately ~1 million public repositories (not all of GitHub)
+- Faster response times compared to regular GitHub search
+- Best for searching common, popular repositories
+- Use when you need quick code pattern searches across well-known repos
+- If grep.app search doesn't find results, fall back to the regular githubSearch tool which searches the full GitHub index
+
+GITHUB API TOOLS (for user-specific queries):
+When users ask about their own GitHub activity (e.g., "What are my PRs?", "Show me my open PRs with CI failures", "What issues did I create?"), use the GitHub API tools:
+- getGitHubUser: Get information about the authenticated user
+- getUserPullRequests: Get PRs created by the user. Use includeCIStatus=true to check for CI failures
+- getPullRequestDetails: Get detailed information about a specific PR including CI status
+- getUserIssues: Get issues created by the user
+- getUserRepositories: Get repositories owned by or contributed to by the user
+
+For queries like "What are my PRs open with CI failures?", you should:
+1. Call getUserPullRequests with state="open" and includeCIStatus=true
+2. Filter the results to find PRs where ciStatus shows failures (check conclusion="failure" or state="failure")
+3. Present the filtered results concisely: List failing PRs with repo, PR number, title, and failing check links. Skip verbose sections like "What I ran", "Suggested next steps", or listing passing PRs unless specifically asked.
 
 SANDBOX TOOLS (for deep code exploration):
 When standard GitHub search doesn't provide enough detail, you can use sandbox tools to explore repositories directly. Sandboxes are automatically created and managed - you don't need to create or stop them manually.
@@ -127,17 +150,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Create MCP client for grep.app (lighter weight, faster GitHub code search)
+    // Limited to ~1 million public repos but faster than regular GitHub search
+    const grepAppMCPClient = await experimental_createMCPClient({
+      name: "grep-app",
+      transport: {
+        type: "http",
+        url: "https://mcp.grep.app",
+      },
+    });
+
+    // Get tools from grep.app MCP client
+    const grepAppTools = await grepAppMCPClient.tools();
+
     const result = streamText({
-      model: webSearch ? gateway("perplexity/sonar") : gateway(model),
+      model: gateway("openai/gpt-5-mini"),
       system: systemPrompt,
       messages: convertToModelMessages(messages),
       tools: {
         githubSearch: githubSearchTool,
+        getGitHubUser: githubApiTools.getGitHubUser,
+        getUserPullRequests: githubApiTools.getUserPullRequests,
+        getPullRequestDetails: githubApiTools.getPullRequestDetails,
+        getUserIssues: githubApiTools.getUserIssues,
+        getUserRepositories: githubApiTools.getUserRepositories,
         runSandboxCommand: sandboxTools.runCommand,
         listSandboxFiles: sandboxTools.listFiles,
         readSandboxFile: sandboxTools.readFile,
         searchSandboxFiles: sandboxTools.searchFiles,
         searchCommandOutput: sandboxTools.searchCommandOutput,
+        ...grepAppTools,
       },
       stopWhen: stepCountIs(150),
       onError: (error) => {
@@ -148,6 +190,7 @@ export async function POST(req: NextRequest) {
     // send sources and reasoning back to the client
     return result.toUIMessageStreamResponse({
       sendSources: true,
+
       sendReasoning: true,
     });
   } catch (error: any) {
