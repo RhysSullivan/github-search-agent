@@ -18,6 +18,7 @@ type ReasoningContextValue = {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   duration: number | undefined;
+  setHasContent: (hasContent: boolean) => void;
 };
 
 const ReasoningContext = createContext<ReasoningContextValue | null>(null);
@@ -38,7 +39,6 @@ export type ReasoningProps = ComponentProps<typeof Collapsible> & {
   duration?: number;
 };
 
-const AUTO_CLOSE_DELAY = 1000;
 const MS_IN_S = 1000;
 
 export const Reasoning = memo(
@@ -46,7 +46,7 @@ export const Reasoning = memo(
     className,
     isStreaming = false,
     open,
-    defaultOpen = true,
+    defaultOpen = false,
     onOpenChange,
     duration: durationProp,
     children,
@@ -62,8 +62,8 @@ export const Reasoning = memo(
       defaultProp: undefined,
     });
 
-    const [hasAutoClosed, setHasAutoClosed] = useState(false);
     const [startTime, setStartTime] = useState<number | null>(null);
+    const [hasContent, setHasContent] = useState(false);
 
     // Track duration when streaming starts and ends
     useEffect(() => {
@@ -77,18 +77,12 @@ export const Reasoning = memo(
       }
     }, [isStreaming, startTime, setDuration]);
 
-    // Auto-open when streaming starts, auto-close when streaming ends (once only)
+    // Auto-open when content appears (streaming or has content)
     useEffect(() => {
-      if (defaultOpen && !isStreaming && isOpen && !hasAutoClosed) {
-        // Add a small delay before closing to allow user to see the content
-        const timer = setTimeout(() => {
-          setIsOpen(false);
-          setHasAutoClosed(true);
-        }, AUTO_CLOSE_DELAY);
-
-        return () => clearTimeout(timer);
+      if ((isStreaming || hasContent) && !isOpen) {
+        setIsOpen(true);
       }
-    }, [isStreaming, isOpen, defaultOpen, setIsOpen, hasAutoClosed]);
+    }, [isStreaming, hasContent, isOpen, setIsOpen]);
 
     const handleOpenChange = (newOpen: boolean) => {
       setIsOpen(newOpen);
@@ -96,7 +90,7 @@ export const Reasoning = memo(
 
     return (
       <ReasoningContext.Provider
-        value={{ isStreaming, isOpen, setIsOpen, duration }}
+        value={{ isStreaming, isOpen, setIsOpen, duration, setHasContent }}
       >
         <Collapsible
           className={cn("not-prose mb-4", className)}
@@ -120,7 +114,7 @@ const getThinkingMessage = (isStreaming: boolean, duration?: number) => {
   if (duration === undefined) {
     return <p>Thought for a few seconds</p>;
   }
-  return <p>Thought for {duration} seconds</p>;
+  return <p>Thought for {duration} {duration === 1 ? "second" : "seconds"}</p>;
 };
 
 export const ReasoningTrigger = memo(
@@ -159,18 +153,29 @@ export type ReasoningContentProps = ComponentProps<
 };
 
 export const ReasoningContent = memo(
-  ({ className, children, ...props }: ReasoningContentProps) => (
-    <CollapsibleContent
-      className={cn(
-        "mt-4 text-sm",
-        "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
-        className
-      )}
-      {...props}
-    >
-      <Streamdown {...props}>{children}</Streamdown>
-    </CollapsibleContent>
-  )
+  ({ className, children, ...props }: ReasoningContentProps) => {
+    const { setHasContent } = useReasoning();
+
+    // Notify parent when content exists
+    useEffect(() => {
+      if (children && children.trim().length > 0) {
+        setHasContent(true);
+      }
+    }, [children, setHasContent]);
+
+    return (
+      <CollapsibleContent
+        className={cn(
+          "mt-4 text-sm",
+          "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
+          className
+        )}
+        {...props}
+      >
+        <Streamdown {...props}>{children}</Streamdown>
+      </CollapsibleContent>
+    );
+  }
 );
 
 Reasoning.displayName = "Reasoning";

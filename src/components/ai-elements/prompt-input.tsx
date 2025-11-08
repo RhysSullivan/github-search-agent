@@ -376,7 +376,7 @@ export function PromptInputAttachments({
 
   return (
     <div
-      className={cn("flex flex-wrap items-center gap-2 p-3", className)}
+      className={cn("flex flex-wrap items-center gap-2 px-0 pt-3", className)}
       {...props}
     >
       {attachments.files.map((file) => (
@@ -864,7 +864,7 @@ export const PromptInputTextarea = ({
 
   return (
     <InputGroupTextarea
-      className={cn("field-sizing-content max-h-48 min-h-16", className)}
+      className={cn("field-sizing-content max-h-48 min", className)}
       name="message"
       onCompositionEnd={() => setIsComposing(false)}
       onCompositionStart={() => setIsComposing(true)}
@@ -885,13 +885,21 @@ export type PromptInputHeaderProps = Omit<
 export const PromptInputHeader = ({
   className,
   ...props
-}: PromptInputHeaderProps) => (
-  <InputGroupAddon
-    align="block-end"
-    className={cn("order-first flex-wrap gap-1", className)}
-    {...props}
-  />
-);
+}: PromptInputHeaderProps) => {
+  const attachments = usePromptInputAttachments();
+
+  if (!attachments.files.length) {
+    return null;
+  }
+
+  return (
+    <InputGroupAddon
+      align="block-end"
+      className={cn("order-first flex-wrap gap-1 pb-0", className)}
+      {...props}
+    />
+  );
+};
 
 export type PromptInputFooterProps = Omit<
   ComponentProps<typeof InputGroupAddon>,
