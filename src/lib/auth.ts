@@ -1,11 +1,12 @@
 // lib/auth.ts
 import { betterAuth } from "better-auth";
-import Database from "better-sqlite3";
+import { Pool } from "pg";
 
-const database = new Database("./better-auth.sqlite");
+const database = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 export const auth = betterAuth({
-  // Minimal SQLite DB for dev. Replace with Postgres/Prisma/etc in prod.
   database,
   secret: process.env.BETTER_AUTH_SECRET!,
   baseURL: process.env.BETTER_AUTH_URL!,
@@ -19,15 +20,13 @@ export const auth = betterAuth({
 });
 
 // Helper function to get GitHub access token for a user
-export function getGitHubToken(userId: string): string | null {
+export async function getGitHubToken(userId: string): Promise<string | null> {
   try {
-    const stmt = database.prepare(
-      'SELECT "accessToken" FROM "account" WHERE "userId" = ? AND "providerId" = ?'
+    const result = await database.query<{ accessToken: string }>(
+      'SELECT "accessToken" FROM "account" WHERE "userId" = $1 AND "providerId" = $2',
+      [userId, "github"]
     );
-    const account = stmt.get(userId, "github") as
-      | { accessToken: string }
-      | undefined;
-    return account?.accessToken || null;
+    return result.rows[0]?.accessToken || null;
   } catch (error) {
     console.error("Failed to get GitHub token:", error);
     return null;

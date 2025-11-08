@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
 
     let githubToken: string | null = null;
     if (session?.user?.id) {
-      githubToken = getGitHubToken(session.user.id);
+      githubToken = await getGitHubToken(session.user.id);
     }
 
     // Create MCP client for grep.app (lighter weight, faster GitHub code search)

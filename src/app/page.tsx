@@ -15,7 +15,6 @@ import {
   PromptInputAttachment,
   PromptInputAttachments,
   PromptInputBody,
-  PromptInputButton,
   PromptInputHeader,
   type PromptInputMessage,
   PromptInputSelect,
@@ -37,7 +36,7 @@ import {
   MessageActions,
   MessageResponse,
 } from "@/components/ai-elements/message";
-import { CopyIcon, GlobeIcon, RefreshCcwIcon } from "lucide-react";
+import { CopyIcon, RefreshCcwIcon } from "lucide-react";
 import {
   Source,
   Sources,
