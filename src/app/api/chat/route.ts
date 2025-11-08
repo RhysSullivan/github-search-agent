@@ -13,6 +13,7 @@ import { getGitHubToken } from "@/lib/auth";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "../../../../convex/_generated/api";
 import { getToken } from "@/lib/auth-server";
+import { checkBotId } from "botid/server";
 // Allow streaming responses up to 800 seconds
 
 function buildSystemPrompt(isAuthenticated: boolean): string {
@@ -165,6 +166,16 @@ export const maxDuration = 800;
 
 export async function POST(req: NextRequest) {
   try {
+    // Verify request is not from a bot using BotID
+    const verification = await checkBotId();
+
+    if (verification.isBot) {
+      return new Response(JSON.stringify({ error: "Access denied" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     const {
       messages,
       model,
