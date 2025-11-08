@@ -32,7 +32,11 @@ export const Tool = ({ className, ...props }: ToolProps) => (
 export type ToolHeaderProps = {
   title?: string;
   type: ToolUIPart["type"];
-  state: ToolUIPart["state"] | "approval-requested" | "approval-responded" | "output-denied";
+  state:
+    | ToolUIPart["state"]
+    | "approval-requested"
+    | "approval-responded"
+    | "output-denied";
   className?: string;
 };
 
@@ -104,7 +108,6 @@ export const ToolContent = ({ className, ...props }: ToolContentProps) => (
       "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-popover-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in max-h-[500px] overflow-y-auto",
       className
     )}
-    onOpenAutoFocus={(e) => e.preventDefault()}
     {...props}
   />
 );
