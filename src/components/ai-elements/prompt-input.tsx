@@ -992,6 +992,7 @@ export const PromptInputActionMenuItem = ({
 
 export type PromptInputSubmitProps = ComponentProps<typeof InputGroupButton> & {
   status?: ChatStatus;
+  onStop?: () => void;
 };
 
 export const PromptInputSubmit = ({
@@ -999,27 +1000,39 @@ export const PromptInputSubmit = ({
   variant = "default",
   size = "icon-sm",
   status,
+  onStop,
   children,
   ...props
 }: PromptInputSubmitProps) => {
   let Icon = <CornerDownLeftIcon className="size-4" />;
+  const isStreaming = status === "streaming";
 
   if (status === "submitted") {
     Icon = <Loader2Icon className="size-4 animate-spin" />;
-  } else if (status === "streaming") {
+  } else if (isStreaming) {
     Icon = <SquareIcon className="size-4" />;
   } else if (status === "error") {
     Icon = <XIcon className="size-4" />;
   }
 
+  const handleClick: React.MouseEventHandler<HTMLButtonElement> = (e) => {
+    if (isStreaming && onStop) {
+      e.preventDefault();
+      onStop();
+    } else {
+      props.onClick?.(e);
+    }
+  };
+
   return (
     <InputGroupButton
-      aria-label="Submit"
+      aria-label={isStreaming ? "Stop" : "Submit"}
       className={cn(className)}
       size={size}
-      type="submit"
+      type={isStreaming ? "button" : "submit"}
       variant={variant}
       {...props}
+      onClick={handleClick}
     >
       {children ?? Icon}
     </InputGroupButton>

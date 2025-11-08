@@ -35,7 +35,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Fragment, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import type { GatewayModelId } from "@ai-sdk/gateway";
 import { useStickToBottom } from "use-stick-to-bottom";
@@ -95,7 +95,7 @@ const ChatBotDemo = () => {
   const [input, setInput] = useState("");
   const [model, setModel] = useState<GatewayModelId>("openai/gpt-5-mini");
   const [webSearch, setWebSearch] = useState(false);
-  const { messages, sendMessage, status, regenerate } = useChat();
+  const { messages, sendMessage, status, regenerate, stop } = useChat();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const stickToBottomInstance = useStickToBottom({
     initial: "smooth",
@@ -235,6 +235,7 @@ const ChatBotDemo = () => {
                   <PromptInputSubmit
                     disabled={!input && !status}
                     status={status}
+                    onStop={stop}
                   />
                 </PromptInputFooter>
               </PromptInput>
@@ -278,14 +279,17 @@ const ChatBotDemo = () => {
                           const isLastMessage =
                             message.id === messages.at(-1)?.id;
                           return (
-                            <Fragment key={`${message.id}-${i}`}>
+                            <div
+                              key={`${message.id}-${i}`}
+                              className="group/message flex w-full flex-col"
+                            >
                               <Message from={message.role}>
                                 <MessageContent>
                                   <MessageResponse>{part.text}</MessageResponse>
                                 </MessageContent>
                               </Message>
                               {message.role === "assistant" && (
-                                <MessageActions className="mt-2">
+                                <MessageActions className="mt-2 opacity-0 transition-opacity group-hover/message:opacity-100">
                                   {isLastMessage && (
                                     <MessageAction
                                       onClick={() => regenerate()}
@@ -304,7 +308,19 @@ const ChatBotDemo = () => {
                                   </MessageAction>
                                 </MessageActions>
                               )}
-                            </Fragment>
+                              {message.role === "user" && (
+                                <MessageActions className="mt-2 ml-auto justify-end opacity-0 transition-opacity group-hover/message:opacity-100">
+                                  <MessageAction
+                                    onClick={() =>
+                                      navigator.clipboard.writeText(part.text)
+                                    }
+                                    label="Copy"
+                                  >
+                                    <CopyIcon className="size-3" />
+                                  </MessageAction>
+                                </MessageActions>
+                              )}
+                            </div>
                           );
                         case "reasoning":
                           return (
@@ -409,6 +425,7 @@ const ChatBotDemo = () => {
                   <PromptInputSubmit
                     disabled={!input && !status}
                     status={status}
+                    onStop={stop}
                   />
                 </PromptInputFooter>
               </PromptInput>
