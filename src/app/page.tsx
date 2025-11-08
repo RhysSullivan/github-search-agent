@@ -135,7 +135,7 @@ const ChatBotDemo = () => {
   };
 
   const handleSuggestionClick = (suggestion: string) => {
-    setInput(suggestion);
+    handleSubmit({ text: suggestion });
   };
 
   return (

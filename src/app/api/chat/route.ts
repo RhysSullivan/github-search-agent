@@ -13,6 +13,7 @@ import { getGitHubToken } from "@/lib/auth";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "../../../../convex/_generated/api";
 import { getToken } from "@/lib/auth-server";
+// Allow streaming responses up to 800 seconds
 
 function buildSystemPrompt(isAuthenticated: boolean): string {
   const authStatus = isAuthenticated
@@ -160,7 +161,7 @@ Always be thorough and search systematically. Don't give up after one or two sea
 }
 
 // Allow streaming responses up to 30 seconds
-export const maxDuration = 30;
+export const maxDuration = 800;
 
 export async function POST(req: NextRequest) {
   try {
