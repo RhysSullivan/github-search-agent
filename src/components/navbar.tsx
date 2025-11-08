@@ -9,9 +9,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { LogOut, User } from "lucide-react";
+import { LogOut, User, Github } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { GitHubLoginButton } from "@/components/github-login-button";
 
 export function Navbar() {
@@ -21,7 +23,18 @@ export function Navbar() {
   if (isPending) {
     return (
       <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center justify-end px-4">
+        <div className="flex h-14 items-center justify-end px-4 gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link
+              href="https://github.com/RhysSullivan/github-search-agent"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2"
+            >
+              <Github className="h-4 w-4" />
+              <span>Star on GitHub</span>
+            </Link>
+          </Button>
           <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
         </div>
       </nav>
@@ -31,7 +44,18 @@ export function Navbar() {
   if (!session) {
     return (
       <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center justify-end px-4">
+        <div className="flex h-14 items-center justify-end px-4 gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link
+              href="https://github.com/RhysSullivan/github-search-agent"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2"
+            >
+              <Github className="h-4 w-4" />
+              <span>Star on GitHub</span>
+            </Link>
+          </Button>
           <GitHubLoginButton />
         </div>
       </nav>
@@ -54,7 +78,18 @@ export function Navbar() {
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 items-center justify-end px-4">
+      <div className="flex h-14 items-center justify-end px-4 gap-2">
+        <Button variant="outline" size="sm" asChild>
+          <Link
+            href="https://github.com/RhysSullivan/github-search-agent"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2"
+          >
+            <Github className="h-4 w-4" />
+            <span>Star on GitHub</span>
+          </Link>
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">

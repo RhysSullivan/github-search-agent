@@ -50,6 +50,7 @@ export function createGitHubApiProxyTool(githubToken: string | null) {
       endpoint: string;
       params?: Record<string, unknown>;
     }) => {
+      let finalEndpoint = endpoint;
       try {
         // Ensure endpoint starts with /
         const normalizedEndpoint = endpoint.startsWith("/")
@@ -57,7 +58,8 @@ export function createGitHubApiProxyTool(githubToken: string | null) {
           : `/${endpoint}`;
 
         // Extract path parameters from endpoint
-        const pathParamMatches = normalizedEndpoint.matchAll(/\{(\w+)\}/g);
+        const pathParamRegex = /\{(\w+)\}/g;
+        const pathParamMatches = Array.from(normalizedEndpoint.matchAll(pathParamRegex));
         const pathParams: Record<string, unknown> = {};
         const queryParams: Record<string, unknown> = {};
 
@@ -71,7 +73,7 @@ export function createGitHubApiProxyTool(githubToken: string | null) {
         }
 
         // Replace path parameters in endpoint
-        let finalEndpoint = normalizedEndpoint;
+        finalEndpoint = normalizedEndpoint;
         for (const match of pathParamMatches) {
           const paramName = match[1];
           if (!paramName) continue;
@@ -81,8 +83,9 @@ export function createGitHubApiProxyTool(githubToken: string | null) {
               `Missing required path parameter: ${paramName} for endpoint ${endpoint}`
             );
           }
+          // Replace all occurrences of this placeholder (using global replace)
           finalEndpoint = finalEndpoint.replace(
-            `{${paramName}}`,
+            new RegExp(`\\{${paramName}\\}`, 'g'),
             String(paramValue)
           );
         }
@@ -104,7 +107,7 @@ export function createGitHubApiProxyTool(githubToken: string | null) {
           }
           if (status === 404) {
             throw new Error(
-              `GitHub API endpoint not found: ${endpoint}. Check that the endpoint path and parameters are correct.`
+              `GitHub API endpoint not found: ${finalEndpoint} (original: ${endpoint}). Check that the endpoint path and parameters are correct.`
             );
           }
           if (status === 403) {
