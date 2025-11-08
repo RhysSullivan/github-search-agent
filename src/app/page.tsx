@@ -28,9 +28,10 @@ import {
   PromptInputFooter,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
-import { Fragment, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import type { GatewayModelId } from "@ai-sdk/gateway";
+import { useStickToBottom } from "use-stick-to-bottom";
 import {
   MessageAction,
   MessageActions,
@@ -69,6 +70,19 @@ const ChatBotDemo = () => {
   const [model, setModel] = useState<GatewayModelId>("openai/gpt-5-mini");
   const [webSearch, setWebSearch] = useState(false);
   const { messages, sendMessage, status, regenerate } = useChat();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const stickToBottomInstance = useStickToBottom({
+    initial: "smooth",
+    resize: "smooth",
+  });
+
+  // Attach the scrollRef to our scroll container using ref callback
+  const setScrollRef = (element: HTMLDivElement | null) => {
+    scrollContainerRef.current = element;
+    if (element && stickToBottomInstance.scrollRef) {
+      stickToBottomInstance.scrollRef(element);
+    }
+  };
 
   const handleSubmit = (message: PromptInputMessage) => {
     const hasText = Boolean(message.text);
@@ -94,11 +108,13 @@ const ChatBotDemo = () => {
   };
 
   return (
-    <div className="h-screen overflow-y-auto" id="scroll-container">
-      <div className="max-w-4xl mx-auto p-6 relative min-h-full">
-        <div className="flex flex-col min-h-full">
-          <Conversation className="flex-1 overflow-y-visible">
-            <ConversationContent>
+    <div
+      ref={setScrollRef}
+      className="relative flex h-[calc(100vh-3.5rem)] w-full flex-col divide-y overflow-y-auto overflow-x-hidden"
+    >
+      <div className="max-w-4xl mx-auto w-full flex flex-col flex-1 px-6 pt-6">
+        <Conversation instance={stickToBottomInstance}>
+          <ConversationContent>
             {messages.map((message) => (
               <div key={message.id} className="[content-visibility:auto]">
                 {message.role === "assistant" &&
@@ -205,16 +221,14 @@ const ChatBotDemo = () => {
                 })}
               </div>
             ))}
-            </ConversationContent>
-            <ConversationScrollButton />
-          </Conversation>
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
+      </div>
 
-          <PromptInput
-            onSubmit={handleSubmit}
-            className="mt-4"
-            globalDrop
-            multiple
-          >
+      <div className="grid shrink-0 gap-4 pt-4 pb-2">
+        <div className="w-full px-4 pb-4 max-w-4xl mx-auto">
+          <PromptInput onSubmit={handleSubmit} globalDrop multiple>
             <PromptInputHeader>
               <PromptInputAttachments>
                 {(attachment) => <PromptInputAttachment data={attachment} />}
