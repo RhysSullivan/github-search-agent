@@ -28,7 +28,13 @@ import {
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { Suggestions, Suggestion } from "@/components/ai-elements/suggestion";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Fragment, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import type { GatewayModelId } from "@ai-sdk/gateway";
@@ -67,15 +73,21 @@ const models = [
 ];
 
 const features = [
-  { title: "GitHub Search", description: "Search repositories, code, issues & PRs" },
-  { title: "Personalized Responses", description: "Sign in with GitHub for your PRs & issues" },
+  {
+    title: "GitHub Search",
+    description: "Search repositories, code, issues & PRs",
+  },
+  {
+    title: "Personalized Responses",
+    description: "Sign in with GitHub for your PRs & issues",
+  },
   { title: "Sandboxes", description: "Download repos & run code" },
   { title: "Code Exploration", description: "Navigate & understand codebases" },
 ];
 
 const promptSuggestions = [
-  "Search for React hooks examples",
-  "Find authentication implementations",
+  "Explain how remote connections in OpenCode are implemented",
+  "List my open PRs with CI failures",
   "Show me TypeScript best practices",
   "Analyze this repository structure",
 ];
@@ -135,18 +147,29 @@ const ChatBotDemo = () => {
         <>
           <div className="max-w-4xl mx-auto w-full flex flex-col flex-1 px-6 pt-12">
             <div className="text-center mb-12">
-              <h1 className="text-4xl font-semibold mb-2">Welcome to Better Pilot</h1>
-              <p className="text-muted-foreground">Your AI-powered GitHub search assistant</p>
+              <h1 className="text-4xl font-semibold mb-2">
+                Welcome to Better Pilot
+              </h1>
+              <p className="text-muted-foreground">
+                Your AI-powered GitHub search assistant
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 mb-12 max-w-md mx-auto">
               {features.map((feature, index) => (
-                <Card key={index} className="flex flex-col gap-0 py-3 px-4 border-border/50">
+                <Card
+                  key={index}
+                  className="flex flex-col gap-0 py-3 px-4 border-border/50"
+                >
                   <CardHeader className="p-0 pb-1.5">
-                    <CardTitle className="text-sm font-medium leading-tight">{feature.title}</CardTitle>
+                    <CardTitle className="text-sm font-medium leading-tight">
+                      {feature.title}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="p-0 flex items-start">
-                    <CardDescription className="text-xs leading-relaxed">{feature.description}</CardDescription>
+                    <CardDescription className="text-xs leading-relaxed">
+                      {feature.description}
+                    </CardDescription>
                   </CardContent>
                 </Card>
               ))}
@@ -169,7 +192,9 @@ const ChatBotDemo = () => {
               <PromptInput onSubmit={handleSubmit} globalDrop multiple>
                 <PromptInputHeader>
                   <PromptInputAttachments>
-                    {(attachment) => <PromptInputAttachment data={attachment} />}
+                    {(attachment) => (
+                      <PromptInputAttachment data={attachment} />
+                    )}
                   </PromptInputAttachments>
                 </PromptInputHeader>
                 <PromptInputBody>
@@ -208,7 +233,10 @@ const ChatBotDemo = () => {
                       </PromptInputSelectContent>
                     </PromptInputSelect>
                   </PromptInputTools>
-                  <PromptInputSubmit disabled={!input && !status} status={status} />
+                  <PromptInputSubmit
+                    disabled={!input && !status}
+                    status={status}
+                  />
                 </PromptInputFooter>
               </PromptInput>
             </div>
@@ -335,7 +363,9 @@ const ChatBotDemo = () => {
               <PromptInput onSubmit={handleSubmit} globalDrop multiple>
                 <PromptInputHeader>
                   <PromptInputAttachments>
-                    {(attachment) => <PromptInputAttachment data={attachment} />}
+                    {(attachment) => (
+                      <PromptInputAttachment data={attachment} />
+                    )}
                   </PromptInputAttachments>
                 </PromptInputHeader>
                 <PromptInputBody>
@@ -374,7 +404,10 @@ const ChatBotDemo = () => {
                       </PromptInputSelectContent>
                     </PromptInputSelect>
                   </PromptInputTools>
-                  <PromptInputSubmit disabled={!input && !status} status={status} />
+                  <PromptInputSubmit
+                    disabled={!input && !status}
+                    status={status}
+                  />
                 </PromptInputFooter>
               </PromptInput>
             </div>
