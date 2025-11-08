@@ -86,29 +86,30 @@ export const ToolHeader = ({
   ...props
 }: ToolHeaderProps) => {
   const toolName = title ?? type.split("-").slice(1).join("-");
-  const formattedReason = reason ? formatReasonAsAction(reason) : null;
 
   return (
     <CollapsibleTrigger
       className={cn(
-        "sticky top-0 z-10 flex w-full flex-col gap-2 rounded-t-md border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3",
+        "sticky top-0 z-10 flex w-full items-end justify-between gap-4 rounded-t-md border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3",
         className
       )}
       {...props}
     >
-      <div className="flex w-full items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <WrenchIcon className="size-4 text-muted-foreground" />
-          <span className="font-medium text-sm">{toolName}</span>
-          {getStatusBadge(state)}
-        </div>
+      <div className="flex items-center gap-2">
+        <WrenchIcon className="size-4 text-muted-foreground" />
+        {reason ? (
+          <div className="rounded-md bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+            {reason}
+          </div>
+        ) : (
+          <div />
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        {getStatusBadge(state)}
+        <span className="font-medium text-sm">{toolName}</span>
         <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
       </div>
-      {formattedReason && (
-        <div className="text-xs text-muted-foreground pl-6">
-          {formattedReason}
-        </div>
-      )}
     </CollapsibleTrigger>
   );
 };
@@ -142,16 +143,14 @@ export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
 
   return (
     <div className={cn("space-y-2 overflow-hidden p-4", className)} {...props}>
-      <div className="space-y-2">
-        <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-          Parameters
-        </h4>
-        <div className="rounded-md bg-muted/50">
-          <CodeBlock
-            code={JSON.stringify(inputWithoutReason, null, 2)}
-            language="json"
-          />
-        </div>
+      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+        Parameters
+      </h4>
+      <div className="rounded-md bg-muted/50">
+        <CodeBlock
+          code={JSON.stringify(inputWithoutReason, null, 2)}
+          language="json"
+        />
       </div>
     </div>
   );

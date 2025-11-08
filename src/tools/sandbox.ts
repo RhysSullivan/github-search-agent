@@ -153,7 +153,7 @@ export const runSandboxCommandTool = tool({
         .string()
         .optional()
         .describe(
-          "Optional explanation of why this tool is being called and what information is being sought."
+          "Optional explanation of what action is being performed, written in present participle form (e.g., 'reading package.json', 'running tests', 'searching for function definitions'). This describes the LLM's action from the user's perspective."
         ),
     })
   ),

@@ -45,7 +45,7 @@ export function createGitHubApiProxyTool(githubToken: string | null) {
           .string()
           .optional()
           .describe(
-            "Optional explanation of why this tool is being called and what information is being sought."
+            "Optional explanation of what action is being performed, written in present participle form (e.g., 'getting authenticated username', 'searching for repositories', 'fetching pull request details'). The user is reading this to understand why the tool is being called."
           ),
       })
     ),
@@ -67,7 +67,9 @@ export function createGitHubApiProxyTool(githubToken: string | null) {
 
         // Extract path parameters from endpoint
         const pathParamRegex = /\{(\w+)\}/g;
-        const pathParamMatches = Array.from(normalizedEndpoint.matchAll(pathParamRegex));
+        const pathParamMatches = Array.from(
+          normalizedEndpoint.matchAll(pathParamRegex)
+        );
         const pathParams: Record<string, unknown> = {};
         const queryParams: Record<string, unknown> = {};
 
@@ -93,7 +95,7 @@ export function createGitHubApiProxyTool(githubToken: string | null) {
           }
           // Replace all occurrences of this placeholder (using global replace)
           finalEndpoint = finalEndpoint.replace(
-            new RegExp(`\\{${paramName}\\}`, 'g'),
+            new RegExp(`\\{${paramName}\\}`, "g"),
             String(paramValue)
           );
         }
@@ -132,9 +134,7 @@ export function createGitHubApiProxyTool(githubToken: string | null) {
                 error as { response: { headers?: Record<string, string> } }
               ).response;
               const resetTime = new Date(
-                parseInt(
-                  response?.headers?.["x-ratelimit-reset"] || "0"
-                ) * 1000
+                parseInt(response?.headers?.["x-ratelimit-reset"] || "0") * 1000
               );
               throw new Error(
                 `GitHub API rate limit exceeded. Reset time: ${resetTime.toISOString()}. Signing in with GitHub provides higher rate limits.`

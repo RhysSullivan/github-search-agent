@@ -11,7 +11,12 @@ const typedTools = {
       z.object({
         endpoint: z.string(),
         params: z.record(z.string(), z.unknown()).optional(),
-        reason: z.string().optional(),
+        reason: z
+          .string()
+          .optional()
+          .describe(
+            "Optional explanation of what action is being performed, written in present participle form (e.g., 'getting authenticated username', 'searching for repositories', 'fetching pull request details'). This describes the LLM's action from the user's perspective."
+          ),
       })
     ),
     execute: async () => ({}),
@@ -25,7 +30,12 @@ const typedTools = {
         args: z.array(z.string()).default([]),
         sudo: z.boolean().default(false),
         workingDirectory: z.string().optional(),
-        reason: z.string().optional(),
+        reason: z
+          .string()
+          .optional()
+          .describe(
+            "Optional explanation of what action is being performed, written in present participle form (e.g., 'reading package.json', 'running tests', 'searching for function definitions'). This describes the LLM's action from the user's perspective."
+          ),
       })
     ),
     execute: async () => ({}),
