@@ -79,9 +79,18 @@ async function getPRChecksStatus(
 // Helper function to create getGitHubUser tool with token
 export function createGetGitHubUserTool(githubToken: string | null) {
   if (!githubToken) {
-    throw new Error(
-      "GitHub authentication required. Please sign in with GitHub."
-    );
+    return tool({
+      description:
+        "Get information about the authenticated GitHub user. Returns the user's login, name, email, and other profile information.",
+      inputSchema: zodSchema(z.object({})),
+      execute: async () => {
+        return {
+          error: "authentication_required",
+          message:
+            "This tool requires GitHub authentication. Please ask the user to use the 'Sign in with GitHub' button in the navbar to sign in.",
+        };
+      },
+    });
   }
 
   const octokit = new Octokit({
@@ -133,9 +142,55 @@ export function createGetGitHubUserTool(githubToken: string | null) {
 // Helper function to create getUserPullRequests tool with token
 export function createGetUserPullRequestsTool(githubToken: string | null) {
   if (!githubToken) {
-    throw new Error(
-      "GitHub authentication required. Please sign in with GitHub."
-    );
+    return tool({
+      description: `Get pull requests created by the authenticated user. Can filter by state (open, closed, all), repository, and check CI status.
+    
+    Use this tool when users ask about:
+    - "What are my PRs?"
+    - "Show me my open PRs"
+    - "What PRs do I have with CI failures?"
+    - "My PRs in repository X"
+    
+    The tool can check CI status for each PR to identify failures.`,
+      inputSchema: zodSchema(
+        z.object({
+          state: z
+            .enum(["open", "closed", "all"])
+            .default("open")
+            .describe("Filter PRs by state: open, closed, or all"),
+          repo: z
+            .string()
+            .optional()
+            .describe(
+              "Optional: Filter to a specific repository in format 'owner/repo-name'"
+            ),
+          includeCIStatus: z
+            .boolean()
+            .default(false)
+            .describe(
+              "Whether to check CI status for each PR (slower but provides CI failure information)"
+            ),
+          perPage: z
+            .number()
+            .min(1)
+            .max(100)
+            .default(30)
+            .describe("Number of results per page (1-100, default: 30)"),
+          page: z
+            .number()
+            .min(1)
+            .default(1)
+            .describe("Page number for pagination (default: 1)"),
+        })
+      ),
+      execute: async () => {
+        return {
+          error: "authentication_required",
+          message:
+            "This tool requires GitHub authentication. Please ask the user to use the 'Sign in with GitHub' button in the navbar to sign in.",
+        };
+      },
+    });
   }
 
   const octokit = new Octokit({
@@ -378,9 +433,34 @@ export function createGetUserPullRequestsTool(githubToken: string | null) {
 // Helper function to create getPullRequestDetails tool with token
 export function createGetPullRequestDetailsTool(githubToken: string | null) {
   if (!githubToken) {
-    throw new Error(
-      "GitHub authentication required. Please sign in with GitHub."
-    );
+    return tool({
+      description: `Get detailed information about a specific pull request, including CI status, checks, and merge status.
+    
+    Use this tool when users ask about:
+    - "What's the status of PR #123?"
+    - "Is PR #456 passing CI?"
+    - "Show me details about PR #789"`,
+      inputSchema: zodSchema(
+        z.object({
+          owner: z
+            .string()
+            .describe("Repository owner (username or organization)"),
+          repo: z.string().describe("Repository name"),
+          pullNumber: z.number().describe("Pull request number"),
+          includeCIStatus: z
+            .boolean()
+            .default(true)
+            .describe("Whether to include CI status and checks"),
+        })
+      ),
+      execute: async () => {
+        return {
+          error: "authentication_required",
+          message:
+            "This tool requires GitHub authentication. Please ask the user to use the 'Sign in with GitHub' button in the navbar to sign in.",
+        };
+      },
+    });
   }
 
   const octokit = new Octokit({
@@ -540,9 +620,46 @@ export function createGetPullRequestDetailsTool(githubToken: string | null) {
 // Helper function to create getUserIssues tool with token
 export function createGetUserIssuesTool(githubToken: string | null) {
   if (!githubToken) {
-    throw new Error(
-      "GitHub authentication required. Please sign in with GitHub."
-    );
+    return tool({
+      description: `Get issues created by the authenticated user. Can filter by state (open, closed, all) and repository.
+    
+    Use this tool when users ask about:
+    - "What are my issues?"
+    - "Show me my open issues"
+    - "My issues in repository X"`,
+      inputSchema: zodSchema(
+        z.object({
+          state: z
+            .enum(["open", "closed", "all"])
+            .default("open")
+            .describe("Filter issues by state: open, closed, or all"),
+          repo: z
+            .string()
+            .optional()
+            .describe(
+              "Optional: Filter to a specific repository in format 'owner/repo-name'"
+            ),
+          perPage: z
+            .number()
+            .min(1)
+            .max(100)
+            .default(30)
+            .describe("Number of results per page (1-100, default: 30)"),
+          page: z
+            .number()
+            .min(1)
+            .default(1)
+            .describe("Page number for pagination (default: 1)"),
+        })
+      ),
+      execute: async () => {
+        return {
+          error: "authentication_required",
+          message:
+            "This tool requires GitHub authentication. Please ask the user to use the 'Sign in with GitHub' button in the navbar to sign in.",
+        };
+      },
+    });
   }
 
   const octokit = new Octokit({
@@ -671,9 +788,50 @@ export function createGetUserIssuesTool(githubToken: string | null) {
 // Helper function to create getUserRepositories tool with token
 export function createGetUserRepositoriesTool(githubToken: string | null) {
   if (!githubToken) {
-    throw new Error(
-      "GitHub authentication required. Please sign in with GitHub."
-    );
+    return tool({
+      description: `Get repositories owned by or contributed to by the authenticated user.
+    
+    Use this tool when users ask about:
+    - "What are my repositories?"
+    - "Show me my repos"
+    - "What repos do I own?"`,
+      inputSchema: zodSchema(
+        z.object({
+          type: z
+            .enum(["all", "owner", "member"])
+            .default("all")
+            .describe(
+              "Filter by repository type: all, owner (repos user owns), or member (repos user is a member of)"
+            ),
+          sort: z
+            .enum(["created", "updated", "pushed", "full_name"])
+            .default("updated")
+            .describe("Sort order for repositories"),
+          direction: z
+            .enum(["asc", "desc"])
+            .default("desc")
+            .describe("Sort direction"),
+          perPage: z
+            .number()
+            .min(1)
+            .max(100)
+            .default(30)
+            .describe("Number of results per page (1-100, default: 30)"),
+          page: z
+            .number()
+            .min(1)
+            .default(1)
+            .describe("Page number for pagination (default: 1)"),
+        })
+      ),
+      execute: async () => {
+        return {
+          error: "authentication_required",
+          message:
+            "This tool requires GitHub authentication. Please ask the user to use the 'Sign in with GitHub' button in the navbar to sign in.",
+        };
+      },
+    });
   }
 
   const octokit = new Octokit({

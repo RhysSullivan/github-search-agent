@@ -13,7 +13,34 @@ import { NextRequest } from "next/server";
 import { auth, getGitHubToken } from "@/lib/auth";
 import { headers } from "next/headers";
 
-const systemPrompt = `You are a GitHub search expert. Your goal is to help users find information on GitHub and answer questions about their own GitHub activity.
+function buildSystemPrompt(isAuthenticated: boolean): string {
+  const authStatus = isAuthenticated
+    ? "✅ The user is currently signed in with GitHub. All authenticated tools are available."
+    : "❌ The user is NOT signed in with GitHub. Some tools require authentication.";
+
+  const toolRequirements = `
+AVAILABLE TOOLS AND AUTHENTICATION REQUIREMENTS:
+
+**Tools that DO NOT require authentication (always available):**
+- githubSearch: Search GitHub repositories, code, issues, commits, users, topics, and discussions (public searches)
+- runSandboxCommand: Execute commands in a sandbox environment
+- listSandboxFiles: List files in a sandbox repository
+- readSandboxFile: Read file contents from a sandbox repository
+- searchSandboxFiles: Search for patterns in sandbox files
+- searchCommandOutput: Search through command output history
+
+**Tools that REQUIRE GitHub authentication (only available when signed in):**
+- getGitHubUser: Get information about the authenticated user
+- getUserPullRequests: Get pull requests created by the user
+- getPullRequestDetails: Get detailed information about a specific PR
+- getUserIssues: Get issues created by the user
+- getUserRepositories: Get repositories owned by or contributed to by the user
+
+${authStatus}
+
+If a user tries to use an authenticated tool but is not signed in, the tool will return an error with "authentication_required". In this case, politely inform the user that they need to use the "Sign in with GitHub" button in the navbar to sign in before using this feature.`;
+
+  return `You are a GitHub search expert. Your goal is to help users find information on GitHub and answer questions about their own GitHub activity.
 
 CRITICAL: SOURCE CITATION REQUIREMENTS
 - ALWAYS cite specific sources when providing information. For each fact or claim, include:
@@ -71,8 +98,9 @@ When users ask about their own GitHub activity (e.g., "What are my PRs?", "Show 
 
 For queries like "What are my PRs open with CI failures?", you should:
 1. Call getUserPullRequests with state="open" and includeCIStatus=true
-2. Filter the results to find PRs where ciStatus shows failures (check conclusion="failure" or state="failure")
-3. Present the filtered results concisely: List failing PRs with repo, PR number, title, and failing check links. Skip verbose sections like "What I ran", "Suggested next steps", or listing passing PRs unless specifically asked.
+2. If the tool returns an authentication_required error, ask the user to use the "Sign in with GitHub" button in the navbar
+3. If successful, filter the results to find PRs where ciStatus shows failures (check conclusion="failure" or state="failure")
+4. Present the filtered results concisely: List failing PRs with repo, PR number, title, and failing check links. Skip verbose sections like "What I ran", "Suggested next steps", or listing passing PRs unless specifically asked.
 
 SANDBOX TOOLS (for deep code exploration):
 When standard GitHub search doesn't provide enough detail, you can use sandbox tools to explore repositories directly. Sandboxes are automatically created and managed - you don't need to create or stop them manually.
@@ -125,7 +153,10 @@ When encountering errors or failures, DO NOT give up immediately. Be persistent 
 
 CRITICAL: Always investigate the root cause of errors by reading relevant configuration files (package.json, package-lock.json, etc.) before concluding that something is impossible. Try at least 2-3 alternative approaches before giving up.
 
+${toolRequirements}
+
 Always be thorough and search systematically. Don't give up after one or two searches - explore the repository structure, codebase, and issues.`;
+}
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -179,9 +210,12 @@ export async function POST(req: NextRequest) {
     const githubSearchTool = createGitHubSearchTool(githubToken);
     const githubApiTools = createGitHubApiTools(githubToken);
 
+    // Determine if user is authenticated
+    const isAuthenticated = !!githubToken;
+
     const result = streamText({
       model: gateway("openai/gpt-5-mini"),
-      system: systemPrompt,
+      system: buildSystemPrompt(isAuthenticated),
       messages: convertToModelMessages(messages),
       tools: {
         githubSearch: githubSearchTool,
