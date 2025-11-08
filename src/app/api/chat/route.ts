@@ -10,11 +10,7 @@ import { createGitHubApiTools } from "@/tools/github-api";
 import { sandboxTools } from "@/tools/sandbox";
 import { NextRequest } from "next/server";
 import { getGitHubToken } from "@/lib/auth";
-import { fetchQuery } from "convex/nextjs";
-import { api } from "../../../../convex/_generated/api";
-import { getToken } from "@/lib/auth-server";
 import { checkBotId } from "botid/server";
-// Allow streaming responses up to 800 seconds
 
 function buildSystemPrompt(isAuthenticated: boolean): string {
   const authStatus = isAuthenticated
@@ -196,14 +192,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get session and GitHub access token
-    const token = await getToken();
-    const sessionResult = await fetchQuery(api.auth.getSession, {}, { token });
-
-    let githubToken: string | null = null;
-    if (sessionResult?.user?.id) {
-      githubToken = await getGitHubToken(sessionResult.user.id);
-    }
+    const githubToken = await getGitHubToken();
 
     // Create GitHub tools with user's token
     const githubSearchTool = createGitHubSearchTool(githubToken);
@@ -251,7 +240,8 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Internal server error";
-    return new Response(JSON.stringify({ error: message }), {
+    console.error("Error:", error);
+    return new Response(JSON.stringify({ error: "Something went wrong" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });

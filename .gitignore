@@ -38,7 +38,3 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .DS_Store
 .vercel
 .env*.local
-
-# BetterAuth database
-better-auth.sqlite
-better-auth.sqlite-journal

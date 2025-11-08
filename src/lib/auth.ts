@@ -5,10 +5,10 @@ import { getToken } from "./auth-server";
 
 // Helper function to get GitHub access token for a user
 // This calls the Convex query function
-export async function getGitHubToken(userId: string): Promise<string | null> {
+export async function getGitHubToken(): Promise<string | null> {
   try {
     const token = await getToken();
-    return await fetchQuery(api.getGitHubToken.getGitHubToken, { userId }, { token });
+    return await fetchQuery(api.getGitHubToken.getGitHubToken, {}, { token });
   } catch (error) {
     console.error("Failed to get GitHub token:", error);
     return null;

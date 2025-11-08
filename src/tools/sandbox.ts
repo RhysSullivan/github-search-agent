@@ -129,8 +129,8 @@ async function getOrCreateSandbox(
         url: repositoryUrl!,
         type: "git",
       },
-      resources: { vcpus: 4 },
-      timeout: ms("30m") as number, // Default 30 minute timeout
+      resources: { vcpus: 1 },
+      timeout: ms("10m") as number, // Default 30 minute timeout
       runtime: "node22",
       ports: [],
     };
