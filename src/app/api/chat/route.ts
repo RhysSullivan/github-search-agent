@@ -20,11 +20,7 @@ function buildSystemPrompt(isAuthenticated: boolean): string {
 AVAILABLE TOOLS AND AUTHENTICATION REQUIREMENTS:
 
 **Tools that DO NOT require authentication (always available):**
-- runSandboxCommand: Execute commands in a sandbox environment
-- listSandboxFiles: List files in a sandbox repository
-- readSandboxFile: Read file contents from a sandbox repository
-- searchSandboxFiles: Search for patterns in sandbox files
-- searchCommandOutput: Search through command output history
+- runSandboxCommand: Execute commands in a sandbox environment. This tool can run any shell command including ls, cat, grep, find, etc. Use it to list files, read files, search files, install dependencies, run tests, and more.
 
 **Tools that REQUIRE GitHub authentication (only available when signed in):**
 - githubApi: Make GET requests to the GitHub REST API. Can access any GitHub API endpoint that supports GET requests, including search endpoints (/search/repositories, /search/code, /search/issues, /search/users, /search/commits, /search/topics), user data (/user, /user/repos), repository data (/repos/{owner}/{repo}/pulls, /repos/{owner}/{repo}/issues), and any other GitHub API endpoint.
@@ -174,14 +170,17 @@ When standard GitHub search doesn't provide enough detail, you can use sandbox t
 
 CRITICAL EXECUTION ORDER: When using sandbox tools, you MUST wait for each sandbox tool call to complete and receive its result before making any other tool calls (including githubApi or other sandbox tools). Do NOT call multiple tools in parallel when sandbox operations are involved - execute sandbox tools sequentially and wait for their results.
 
-Available sandbox tools:
-- listSandboxFiles: Explore the repository structure and file organization (provide repositoryUrl on first use)
-- readSandboxFile: Read full file contents to understand implementation details (provide repositoryUrl on first use)
-- searchSandboxFiles: Search for patterns across files (like grep) (provide repositoryUrl on first use)
-- runSandboxCommand: Execute commands to install dependencies, run tests, or explore the codebase (provide repositoryUrl on first use). Returns truncated output for large commands - use searchCommandOutput to search the full output.
-- searchCommandOutput: Search through stored command outputs to find specific patterns, errors, or information. Use this when you need to search large command outputs that were truncated.
+Available sandbox tool:
+- runSandboxCommand: Execute any shell command in a sandbox environment. This single tool can do everything:
+  - List files: command="ls", args=["-la"] or command="find", args=[".", "-type", "f"]
+  - Read files: command="cat", args=["path/to/file"] or command="head", args=["-n", "50", "path/to/file"]
+  - Search files: command="grep", args=["-r", "pattern", "."] or command="grep", args=["-rn", "pattern", "path"]
+  - Clone repositories: command="git", args=["clone", "https://github.com/owner/repo.git"]
+  - Install dependencies: command="npm", args=["install"] or command="bun", args=["install"]
+  - Run scripts: command="npm", args=["test"] or command="bun", args=["run", "build"]
+  - Execute any other shell command or script
 
-IMPORTANT: All sandbox tools accept an optional chatId parameter (defaults to "main" if not provided). On the first sandbox operation for a repository, you must provide the repositoryUrl. Subsequent operations will automatically reuse the same sandbox for that chatId. Always use the exact repository URL format: https://github.com/owner/repo-name.git
+IMPORTANT: The sandbox tool accepts an optional chatId parameter (defaults to "main" if not provided). The sandbox is automatically created and managed - you don't need to create or stop it manually. Commands run in the sandbox's working directory (/vercel/sandbox by default).
 
 Use sandboxes when you need to:
 - Understand complex code structures that require reading multiple files
@@ -275,13 +274,22 @@ export async function POST(req: NextRequest) {
       tools: {
         githubApi: githubApiProxyTool,
         runSandboxCommand: sandboxTools.runCommand,
-        listSandboxFiles: sandboxTools.listFiles,
-        readSandboxFile: sandboxTools.readFile,
-        searchSandboxFiles: sandboxTools.searchFiles,
-        searchCommandOutput: sandboxTools.searchCommandOutput,
       },
       onError: (error) => {
-        console.error("Stream error:", error);
+        // Safely log error - handle different error structures
+        if (error instanceof Error) {
+          console.error("Stream error:", error.message, error.stack);
+        } else if (typeof error === "object" && error !== null) {
+          // Handle error objects that might have nested error properties
+          const errorObj = error as Record<string, unknown>;
+          if (errorObj.error instanceof Error) {
+            console.error("Stream error:", errorObj.error.message, errorObj.error.stack);
+          } else {
+            console.error("Stream error:", JSON.stringify(error, null, 2));
+          }
+        } else {
+          console.error("Stream error:", String(error));
+        }
       },
       providerOptions: {
         openai: {
