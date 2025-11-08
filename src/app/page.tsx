@@ -89,7 +89,7 @@ const features = [
 ];
 
 const promptSuggestions = [
-  "Explain how remote connections in OpenCode are implemented",
+  "Explain how `createOpencodeClient` in OpenCode works to send commands to a remote client",
   "List my open PRs with CI failures",
   "How does dub.co implement OAuth?",
 ];
