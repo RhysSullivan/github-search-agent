@@ -82,7 +82,10 @@ const features = [
     description: "Sign in with GitHub for your PRs & issues",
   },
   { title: "Sandboxes", description: "Download repos & run code" },
-  { title: "Code Exploration", description: "Navigate & understand codebases" },
+  {
+    title: "Public Data Only",
+    description: "Only can search public data",
+  },
 ];
 
 const promptSuggestions = [

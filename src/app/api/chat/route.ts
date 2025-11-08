@@ -5,8 +5,7 @@ import {
   type UIMessage,
 } from "ai";
 import { gateway } from "@ai-sdk/gateway";
-import { createGitHubSearchTool } from "@/tools/search-github";
-import { createGitHubApiTools } from "@/tools/github-api";
+import { createGitHubApiProxyTool } from "@/tools/github-api";
 import { sandboxTools } from "@/tools/sandbox";
 import { NextRequest } from "next/server";
 import { getGitHubToken } from "@/lib/auth";
@@ -21,7 +20,6 @@ function buildSystemPrompt(isAuthenticated: boolean): string {
 AVAILABLE TOOLS AND AUTHENTICATION REQUIREMENTS:
 
 **Tools that DO NOT require authentication (always available):**
-- githubSearch: Search GitHub repositories, code, issues, commits, users, topics, and discussions (public searches)
 - runSandboxCommand: Execute commands in a sandbox environment
 - listSandboxFiles: List files in a sandbox repository
 - readSandboxFile: Read file contents from a sandbox repository
@@ -29,17 +27,13 @@ AVAILABLE TOOLS AND AUTHENTICATION REQUIREMENTS:
 - searchCommandOutput: Search through command output history
 
 **Tools that REQUIRE GitHub authentication (only available when signed in):**
-- getGitHubUser: Get information about the authenticated user
-- getUserPullRequests: Get pull requests created by the user
-- getPullRequestDetails: Get detailed information about a specific PR
-- getUserIssues: Get issues created by the user
-- getUserRepositories: Get repositories owned by or contributed to by the user
+- githubApi: Make GET requests to the GitHub REST API. Can access any GitHub API endpoint that supports GET requests, including search endpoints (/search/repositories, /search/code, /search/issues, /search/users, /search/commits, /search/topics), user data (/user, /user/repos), repository data (/repos/{owner}/{repo}/pulls, /repos/{owner}/{repo}/issues), and any other GitHub API endpoint.
 
 ${authStatus}
 
 If a user tries to use an authenticated tool but is not signed in, the tool will return an error with "authentication_required". In this case, politely inform the user that they need to use the "Sign in with GitHub" button in the navbar to sign in before using this feature.`;
 
-  return `You are a GitHub search expert. Your goal is to help users find information on GitHub and answer questions about their own GitHub activity.
+  return `You are a GitHub search expert. Your goal is to help users find information on GitHub, answer questions about their own GitHub activity, and access any GitHub API endpoint through the generic githubApi tool.
 
 CRITICAL: RESPONSE STYLE - BE CONCISE
 - Be direct and concise - get straight to the point without unnecessary elaboration
@@ -60,24 +54,26 @@ CRITICAL: SOURCE CITATION REQUIREMENTS
 - Be transparent about which search results led to which conclusions, but do it inline with markdown links
 
 SEARCH STRATEGY:
+Use the githubApi tool to search GitHub. The GitHub API provides search endpoints for different resource types:
+
 1. When a user asks about a package/library, FIRST locate the repository:
-   - Search repositories for the package name (e.g., "convex-test")
-   - Try with organization qualifiers (e.g., "org:get-convex convex-test" or "convex-test org:get-convex")
+   - Use endpoint="/search/repositories", params={q: "convex-test"} to search repositories
+   - Try with organization qualifiers: params={q: "org:get-convex convex-test"} or params={q: "convex-test org:get-convex"}
    - Common organizations: get-convex, facebook, google, microsoft, etc.
    - Look for the official/main repository in results
 
 2. Once you find the repository (owner/repo-name), search WITHIN it comprehensively:
-   - Use code search: type="code", repo="owner/repo-name", query="function-name or class-name"
-   - Search issues/PRs: type="issues", repo="owner/repo-name", query="your search terms"
+   - Use code search: endpoint="/search/code", params={q: "function-name repo:owner/repo-name"}
+   - Search issues/PRs: endpoint="/search/issues", params={q: "repo:owner/repo-name your search terms"}
    - Search for related packages/repos mentioned (e.g., if user mentions "convex/browse", also search that repo)
    - This is much more effective than searching globally
 
 3. For finding implementations and discussions:
-   - Use code search (type="code") to find actual source code
-   - Search issues (type="issues") to find discussions, feature requests, or bug reports
+   - Use code search: endpoint="/search/code", params={q: "function-name repo:owner/repo-name"} to find actual source code
+   - Search issues: endpoint="/search/issues", params={q: "repo:owner/repo-name your search terms"} to find discussions, feature requests, or bug reports
    - Search for function names, method names, API names
    - Try variations: camelCase, snake_case, kebab-case
-   - Use the repo parameter to scope to the specific repository
+   - Use the repo: qualifier in the query to scope to the specific repository
 
 4. If initial searches don't find results:
    - Try variations of the search term (different naming conventions)
@@ -87,24 +83,96 @@ SEARCH STRATEGY:
 
 5. Always search both code AND issues when looking for functionality - issues often contain discussions about missing features or workarounds.
 
-GITHUB API TOOLS (for user-specific queries):
-When users ask about their own GitHub activity (e.g., "What are my PRs?", "Show me my open PRs with CI failures", "What issues did I create?"), use the GitHub API tools:
-- getGitHubUser: Get information about the authenticated user
-- getUserPullRequests: Get PRs created by the user. Use includeCIStatus=true to check for CI failures
-- getPullRequestDetails: Get detailed information about a specific PR including CI status
-- getUserIssues: Get issues created by the user
-- getUserRepositories: Get repositories owned by or contributed to by the user
+Available search endpoints:
+- /search/repositories - Search repositories
+- /search/code - Search code
+- /search/issues - Search issues and pull requests
+- /search/users - Search users
+- /search/commits - Search commits
+- /search/topics - Search topics
 
-For queries like "What are my PRs open with CI failures?", you should:
-1. Call getUserPullRequests with state="open" and includeCIStatus=true
-2. If the tool returns an authentication_required error, ask the user to use the "Sign in with GitHub" button in the navbar
-3. If successful, filter the results to find PRs where ciStatus shows failures (check conclusion="failure" or state="failure")
-4. Present the filtered results concisely using inline markdown links: "[repo PR #123](link) - 'title'" format. List ONLY failing PRs unless specifically asked for all. Don't include a Sources section if all PRs are already linked inline.
+All search endpoints use the 'q' query parameter with GitHub's search syntax (e.g., "language:python stars:>100", "repo:owner/repo-name", "is:issue author:username").
+
+GITHUB API TOOL (generic GitHub API access):
+The githubApi tool is a powerful generic tool that allows you to make GET requests to ANY GitHub REST API endpoint. Unlike specialized tools that only work for specific use cases, this tool gives you direct access to the entire GitHub API - you can call any endpoint that supports GET requests, whether it's for user data, repositories, pull requests, issues, commits, checks, or any other GitHub resource.
+
+**How to use:**
+- endpoint: The GitHub API path (e.g., "/user", "/repos/{owner}/{repo}/pulls"). Path parameters use {param} syntax.
+- params: An object containing:
+  - Path parameters: Values that replace {param} placeholders in the endpoint
+  - Query parameters: Additional parameters added to the URL query string
+
+**Common use cases and examples:**
+
+1. **Get authenticated user information:**
+   - endpoint="/user"
+   - params={} (no parameters needed)
+
+2. **Get user's repositories:**
+   - endpoint="/user/repos"
+   - params={type: "all", sort: "updated", per_page: 30}
+
+3. **Get pull requests for a repository:**
+   - endpoint="/repos/{owner}/{repo}/pulls"
+   - params={owner: "octocat", repo: "Hello-World", state: "open", per_page: 30}
+
+4. **Get specific pull request details:**
+   - endpoint="/repos/{owner}/{repo}/pulls/{pull_number}"
+   - params={owner: "octocat", repo: "Hello-World", pull_number: 123}
+
+5. **Get check runs for a commit:**
+   - endpoint="/repos/{owner}/{repo}/commits/{ref}/check-runs"
+   - params={owner: "octocat", repo: "Hello-World", ref: "abc123"}
+
+6. **Search repositories:**
+   - endpoint="/search/repositories"
+   - params={q: "language:python stars:>100", sort: "stars", order: "desc"}
+
+7. **Search code:**
+   - endpoint="/search/code"
+   - params={q: "function-name repo:owner/repo-name"}
+
+8. **Search for issues/PRs:**
+   - endpoint="/search/issues"
+   - params={q: "is:pr author:USERNAME state:open"}
+
+9. **Search users:**
+   - endpoint="/search/users"
+   - params={q: "location:San Francisco"}
+
+10. **Search commits:**
+    - endpoint="/search/commits"
+    - params={q: "repo:owner/repo-name fix bug"}
+
+11. **Get repository contents:**
+   - endpoint="/repos/{owner}/{repo}/contents/{path}"
+   - params={owner: "octocat", repo: "Hello-World", path: "README.md"}
+
+12. **Get repository issues:**
+    - endpoint="/repos/{owner}/{repo}/issues"
+    - params={owner: "octocat", repo: "Hello-World", state: "open"}
+
+**Workflow for complex queries:**
+
+For queries like "What are my PRs open with CI failures?":
+1. Get authenticated user: endpoint="/user" to get the username
+2. Search for PRs: endpoint="/search/issues", params={q: "is:pr author:USERNAME state:open"}
+3. For each PR, get full details: endpoint="/repos/{owner}/{repo}/pulls/{pull_number}" to get the head SHA
+4. Get check runs: endpoint="/repos/{owner}/{repo}/commits/{ref}/check-runs" using the head SHA
+5. Filter results to find failures (check conclusion="failure" or state="failure")
+6. Present filtered results concisely using inline markdown links: "[repo PR #123](link) - 'title'" format
+
+**Important notes:**
+- Only GET requests are supported (no POST, PUT, DELETE, etc.)
+- Path parameters must be provided in params and will replace {param} in the endpoint
+- Query parameters are added to the URL automatically
+- If you get an authentication_required error, ask the user to use the "Sign in with GitHub" button
+- Refer to GitHub's REST API documentation for available endpoints and parameters: https://docs.github.com/en/rest
 
 SANDBOX TOOLS (for deep code exploration):
 When standard GitHub search doesn't provide enough detail, you can use sandbox tools to explore repositories directly. Sandboxes are automatically created and managed - you don't need to create or stop them manually.
 
-CRITICAL EXECUTION ORDER: When using sandbox tools, you MUST wait for each sandbox tool call to complete and receive its result before making any other tool calls (including githubSearch or other sandbox tools). Do NOT call multiple tools in parallel when sandbox operations are involved - execute sandbox tools sequentially and wait for their results.
+CRITICAL EXECUTION ORDER: When using sandbox tools, you MUST wait for each sandbox tool call to complete and receive its result before making any other tool calls (including githubApi or other sandbox tools). Do NOT call multiple tools in parallel when sandbox operations are involved - execute sandbox tools sequentially and wait for their results.
 
 Available sandbox tools:
 - listSandboxFiles: Explore the repository structure and file organization (provide repositoryUrl on first use)
@@ -194,9 +262,8 @@ export async function POST(req: NextRequest) {
 
     const githubToken = await getGitHubToken();
 
-    // Create GitHub tools with user's token
-    const githubSearchTool = createGitHubSearchTool(githubToken);
-    const githubApiTools = createGitHubApiTools(githubToken);
+    // Create GitHub API proxy tool with user's token
+    const githubApiProxyTool = createGitHubApiProxyTool(githubToken);
 
     // Determine if user is authenticated
     const isAuthenticated = !!githubToken;
@@ -206,12 +273,7 @@ export async function POST(req: NextRequest) {
       system: buildSystemPrompt(isAuthenticated),
       messages: convertToModelMessages(messages),
       tools: {
-        githubSearch: githubSearchTool,
-        getGitHubUser: githubApiTools.getGitHubUser,
-        getUserPullRequests: githubApiTools.getUserPullRequests,
-        getPullRequestDetails: githubApiTools.getPullRequestDetails,
-        getUserIssues: githubApiTools.getUserIssues,
-        getUserRepositories: githubApiTools.getUserRepositories,
+        githubApi: githubApiProxyTool,
         runSandboxCommand: sandboxTools.runCommand,
         listSandboxFiles: sandboxTools.listFiles,
         readSandboxFile: sandboxTools.readFile,
@@ -224,8 +286,8 @@ export async function POST(req: NextRequest) {
       providerOptions: {
         openai: {
           // https://platform.openai.com/docs/api-reference/responses/create#responses-create-reasoning
-          reasoningEffort: "high", // minimal (new to this model), low, medium, high
-          reasoningSummary: "detailed", // auto, concise, detailed
+          reasoningEffort: "low", // minimal (new to this model), low, medium, high
+          reasoningSummary: "auto", // auto, concise, detailed
         },
       },
       stopWhen: stepCountIs(150),
