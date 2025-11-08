@@ -26,7 +26,16 @@ export const createAuth = (
       github: {
         clientId: process.env.GITHUB_CLIENT_ID!,
         clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-        scope: ["read:user", "repo", "user:email"],
+        // Minimal read-only scopes:
+        // - user:email: Required for better-auth user identification (read-only)
+        // - read:user: Read user profile information (read-only)
+        //
+        // Note: GitHub's OAuth consent screen may show "Act on your behalf" as standard
+        // language, but this app only requests read-only scopes and cannot perform any
+        // write operations or access private repositories.
+        // Public repositories can be accessed without the 'repo' scope.
+        // Authenticated requests provide higher rate limits even without repo scope.
+        scope: ["user:email", "read:user"],
       },
     },
     plugins: [
