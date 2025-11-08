@@ -185,7 +185,7 @@
     width: 100%;
     -webkit-overflow-scrolling: touch;
   }
-  
+
   /* Style tables within message content */
   .message-content-wrapper table {
     @apply border-collapse;
@@ -193,7 +193,7 @@
     width: max-content;
     min-width: 100%;
   }
-  
+
   .message-content-wrapper table th,
   .message-content-wrapper table td {
     @apply border border-border px-3 py-2 text-left align-top;
@@ -201,16 +201,16 @@
     overflow-wrap: break-word;
     vertical-align: top;
   }
-  
+
   .message-content-wrapper table th {
     @apply bg-muted font-semibold;
     white-space: nowrap;
   }
-  
+
   .message-content-wrapper table td {
     @apply bg-background;
   }
-  
+
   /* Better URL handling - break URLs more gracefully */
   .message-content-wrapper table a {
     word-break: break-all;
@@ -219,26 +219,26 @@
     /* Allow URLs to wrap but break at reasonable points */
     line-break: anywhere;
   }
-  
+
   /* Ensure table cells have reasonable minimum widths to prevent excessive wrapping */
   .message-content-wrapper table th:first-child,
   .message-content-wrapper table td:first-child {
     min-width: 150px;
     max-width: 250px;
   }
-  
+
   .message-content-wrapper table th:nth-child(2),
   .message-content-wrapper table td:nth-child(2) {
     min-width: 200px;
     max-width: 400px;
   }
-  
+
   .message-content-wrapper table th:nth-child(3),
   .message-content-wrapper table td:nth-child(3) {
     min-width: 300px;
     max-width: 600px;
   }
-  
+
   .message-content-wrapper table th:nth-child(4),
   .message-content-wrapper table td:nth-child(4) {
     min-width: 200px;
