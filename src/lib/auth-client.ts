@@ -7,4 +7,3 @@ export const authClient = createAuthClient({
   // Same origin as Next backend, so baseURL can be omitted.
   // baseURL: "http://localhost:3000",
 });
-

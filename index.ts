@@ -1,8 +1,8 @@
 import { stepCountIs, streamText } from "ai";
 import { gateway } from "@ai-sdk/gateway";
 import { experimental_createMCPClient } from "@ai-sdk/mcp";
-import { githubSearchTool } from "./src/tools/search-github";
-import { githubApiTools } from "./src/tools/github-api";
+import { createGitHubSearchTool } from "./src/tools/search-github";
+import { createGitHubApiTools } from "./src/tools/github-api";
 import { sandboxTools } from "./src/tools/sandbox";
 
 // Main agent function
@@ -140,6 +140,10 @@ Always be thorough and search systematically. Don't give up after one or two sea
     // Get tools from grep.app MCP client
     const grepAppTools = await grepAppMCPClient.tools();
 
+    // Create GitHub tools (without token for public searches)
+    const githubSearchTool = createGitHubSearchTool(null);
+    const githubApiTools = createGitHubApiTools(null);
+
     const result = streamText({
       model: gateway("openai/gpt-4o-mini"),
       system: systemPrompt,
@@ -192,7 +196,19 @@ Always be thorough and search systematically. Don't give up after one or two sea
             output !== null &&
             "type" in output
           ) {
-            const result = output as any;
+            const result = output as {
+              type: string;
+              query: string;
+              totalCount: number;
+              items?: Array<{
+                fullName?: string;
+                url?: string;
+                repository?: { fullName: string };
+                path?: string;
+                number?: number;
+                title?: string;
+              }>;
+            };
             process.stdout.write(
               `[Search: ${result.type} | Query: "${result.query}" | Found: ${result.totalCount} results]\n`
             );
@@ -200,20 +216,20 @@ Always be thorough and search systematically. Don't give up after one or two sea
             // Show key source information
             if (result.items && result.items.length > 0) {
               process.stdout.write(`[Top sources found:\n`);
-              result.items.slice(0, 5).forEach((item: any, idx: number) => {
+              result.items.slice(0, 5).forEach((item, idx: number) => {
                 if (result.type === "repositories") {
                   process.stdout.write(
                     `  ${idx + 1}. ${item.fullName} (${item.url})\n`
                   );
                 } else if (result.type === "code") {
                   process.stdout.write(
-                    `  ${idx + 1}. ${item.repository.fullName}/${item.path} (${
+                    `  ${idx + 1}. ${item.repository?.fullName}/${item.path} (${
                       item.url
                     })\n`
                   );
                 } else if (result.type === "issues") {
                   process.stdout.write(
-                    `  ${idx + 1}. ${item.repository.fullName}#${
+                    `  ${idx + 1}. ${item.repository?.fullName}#${
                       item.number
                     }: ${item.title} (${item.url})\n`
                   );
@@ -241,8 +257,9 @@ Always be thorough and search systematically. Don't give up after one or two sea
         process.stdout.write(`\n[Error: ${chunk.error}]\n`);
       }
     }
-  } catch (error: any) {
-    console.error("Error generating response:", error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("Error generating response:", message);
     console.error(error);
     process.exit(1);
   }
@@ -266,8 +283,9 @@ Search GitHub to answer the question.
     console.log("Starting generateResponse...");
     await generateResponse(query);
     console.log("\nCompleted.");
-  } catch (error: any) {
-    console.error("Fatal error:", error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("Fatal error:", message);
     console.error(error);
     process.exit(1);
   }

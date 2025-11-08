@@ -55,7 +55,7 @@ async function getPRChecksStatus(
         conclusion: run.conclusion,
         startedAt: run.started_at,
         completedAt: run.completed_at,
-        htmlUrl: run.html_url,
+        htmlUrl: run.html_url || "",
       })),
       combinedStatus: combinedStatus
         ? {
@@ -70,7 +70,7 @@ async function getPRChecksStatus(
           }
         : null,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     // If we can't get checks, return null
     return null;
   }
@@ -111,13 +111,20 @@ export function createGetGitHubUserTool(githubToken: string | null) {
           createdAt: data.created_at,
           updatedAt: data.updated_at,
         };
-      } catch (error: any) {
-        if (error.status === 401) {
+      } catch (error: unknown) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "status" in error &&
+          (error as { status: unknown }).status === 401
+        ) {
           throw new Error(
             "GitHub API authentication failed. Please check that your GitHub token is valid."
           );
         }
-        throw new Error(`Failed to get user info: ${error.message}`);
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        throw new Error(`Failed to get user info: ${message}`);
       }
     },
   });
@@ -224,8 +231,44 @@ export function createGetUserPullRequestsTool(githubToken: string | null) {
             }
 
             // Get full PR details
-            let prDetails: any = null;
-            let ciStatus: any = null;
+            let prDetails: {
+              number: number;
+              title: string;
+              body: string | null | undefined;
+              state: string;
+              merged: boolean | null;
+              mergeable: boolean | null;
+              mergeableState: string | null;
+              draft: boolean;
+              head: { ref: string; sha: string };
+              base: { ref: string; sha: string };
+              additions: number | null;
+              deletions: number | null;
+              changedFiles: number;
+              commits: number;
+              reviewComments: number;
+              maintainerCanModify: boolean | null;
+            } | null = null;
+            let ciStatus: {
+              checkRuns: Array<{
+                name: string;
+                status: string | null;
+                conclusion: string | null;
+                startedAt: string | null;
+                completedAt: string | null;
+                htmlUrl: string;
+              }>;
+              combinedStatus: {
+                state: string;
+                totalCount: number;
+                statuses: Array<{
+                  state: string;
+                  context: string;
+                  description: string | null;
+                  targetUrl: string | null;
+                }>;
+              } | null;
+            } | null = null;
 
             try {
               const { data: prData } = await octokit.rest.pulls.get({
@@ -242,7 +285,7 @@ export function createGetUserPullRequestsTool(githubToken: string | null) {
                 merged: prData.merged,
                 mergeable: prData.mergeable,
                 mergeableState: prData.mergeable_state,
-                draft: prData.draft,
+                draft: prData.draft ?? false,
                 head: {
                   ref: prData.head.ref,
                   sha: prData.head.sha.substring(0, 7),
@@ -292,7 +335,7 @@ export function createGetUserPullRequestsTool(githubToken: string | null) {
                     avatarUrl: item.user.avatar_url,
                   }
                 : null,
-              labels: item.labels.map((label: any) => ({
+              labels: item.labels.map((label) => ({
                 name: label.name,
                 color: label.color,
               })),
@@ -313,13 +356,20 @@ export function createGetUserPullRequestsTool(githubToken: string | null) {
           perPage,
           hasMore: validPRs.length === perPage,
         };
-      } catch (error: any) {
-        if (error.status === 401) {
+      } catch (error: unknown) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "status" in error &&
+          (error as { status: unknown }).status === 401
+        ) {
           throw new Error(
             "GitHub API authentication failed. Please check that your GitHub token is valid."
           );
         }
-        throw new Error(`Failed to get pull requests: ${error.message}`);
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        throw new Error(`Failed to get pull requests: ${message}`);
       }
     },
   });
@@ -383,7 +433,26 @@ export function createGetPullRequestDetailsTool(githubToken: string | null) {
         });
 
         // Get CI status if requested
-        let ciStatus: any = null;
+        let ciStatus: {
+          checkRuns: Array<{
+            name: string;
+            status: string | null;
+            conclusion: string | null;
+            startedAt: string | null;
+            completedAt: string | null;
+            htmlUrl: string;
+          }>;
+          combinedStatus: {
+            state: string;
+            totalCount: number;
+            statuses: Array<{
+              state: string;
+              context: string;
+              description: string | null;
+              targetUrl: string | null;
+            }>;
+          } | null;
+        } | null = null;
         if (includeCIStatus) {
           ciStatus = await getPRChecksStatus(octokit, owner, repo, pullNumber);
         }
@@ -446,18 +515,23 @@ export function createGetPullRequestDetailsTool(githubToken: string | null) {
             })),
           ...(ciStatus && { ciStatus }),
         };
-      } catch (error: any) {
-        if (error.status === 404) {
-          throw new Error(
-            `Pull request #${pullNumber} not found in ${owner}/${repo}`
-          );
+      } catch (error: unknown) {
+        if (typeof error === "object" && error !== null && "status" in error) {
+          const status = (error as { status: unknown }).status;
+          if (status === 404) {
+            throw new Error(
+              `Pull request #${pullNumber} not found in ${owner}/${repo}`
+            );
+          }
+          if (status === 401) {
+            throw new Error(
+              "GitHub API authentication failed. Please check that your GitHub token is valid."
+            );
+          }
         }
-        if (error.status === 401) {
-          throw new Error(
-            "GitHub API authentication failed. Please check that your GitHub token is valid."
-          );
-        }
-        throw new Error(`Failed to get PR details: ${error.message}`);
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        throw new Error(`Failed to get PR details: ${message}`);
       }
     },
   });
@@ -560,7 +634,7 @@ export function createGetUserIssuesTool(githubToken: string | null) {
                   avatarUrl: item.user.avatar_url,
                 }
               : null,
-            labels: item.labels.map((label: any) => ({
+            labels: item.labels.map((label) => ({
               name: label.name,
               color: label.color,
             })),
@@ -575,13 +649,20 @@ export function createGetUserIssuesTool(githubToken: string | null) {
           perPage,
           hasMore: issues.length === perPage,
         };
-      } catch (error: any) {
-        if (error.status === 401) {
+      } catch (error: unknown) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "status" in error &&
+          (error as { status: unknown }).status === 401
+        ) {
           throw new Error(
             "GitHub API authentication failed. Please check that your GitHub token is valid."
           );
         }
-        throw new Error(`Failed to get issues: ${error.message}`);
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        throw new Error(`Failed to get issues: ${message}`);
       }
     },
   });
@@ -686,13 +767,20 @@ export function createGetUserRepositoriesTool(githubToken: string | null) {
           perPage,
           hasMore: repos.length === perPage,
         };
-      } catch (error: any) {
-        if (error.status === 401) {
+      } catch (error: unknown) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "status" in error &&
+          (error as { status: unknown }).status === 401
+        ) {
           throw new Error(
             "GitHub API authentication failed. Please check that your GitHub token is valid."
           );
         }
-        throw new Error(`Failed to get repositories: ${error.message}`);
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        throw new Error(`Failed to get repositories: ${message}`);
       }
     },
   });

@@ -1,0 +1,92 @@
+---
+description: Prefer importing types over recreating them
+globs: "*.ts, *.tsx"
+alwaysApply: true
+---
+
+Always prefer importing types from their source rather than recreating or duplicating type definitions.
+
+## When to Import Types
+
+- Import types from libraries, packages, and dependencies
+- Import types from other files in the codebase
+- Use `import type` for type-only imports to improve tree-shaking
+- Re-export types when creating type utilities or wrappers
+
+## Examples
+
+❌ Bad - Recreating a type that exists elsewhere:
+
+```typescript
+// Don't recreate types from libraries
+interface ApiResponse {
+  data: unknown;
+  status: number;
+}
+
+function handleResponse(response: ApiResponse) {
+  // ...
+}
+```
+
+✅ Good - Importing the type:
+
+```typescript
+import type { ApiResponse } from './api-types';
+
+function handleResponse(response: ApiResponse) {
+  // ...
+}
+```
+
+❌ Bad - Duplicating types from dependencies:
+
+```typescript
+// Don't recreate types from node_modules
+type User = {
+  id: string;
+  name: string;
+  email: string;
+};
+```
+
+✅ Good - Importing from the library:
+
+```typescript
+import type { User } from '@auth/core/types';
+```
+
+❌ Bad - Recreating types that exist in the codebase:
+
+```typescript
+// Don't recreate types that exist elsewhere
+interface GitHubRepo {
+  id: number;
+  name: string;
+  full_name: string;
+}
+```
+
+✅ Good - Importing from the existing file:
+
+```typescript
+import type { GitHubRepo } from '@/tools/github-api';
+```
+
+## Type-Only Imports
+
+Use `import type` for type-only imports to ensure they are removed at compile time:
+
+```typescript
+import type { User, Session } from '@/lib/auth';
+import type { ComponentProps } from 'react';
+```
+
+## When It's Acceptable to Create Types
+
+- Creating new types specific to the current file/component
+- Extending existing types with `extends` or intersection types
+- Creating utility types (e.g., `Pick`, `Omit`, `Partial`)
+- Types that don't exist elsewhere and are needed for the current implementation
+
+If a type already exists (in a library, package, or elsewhere in the codebase), import it instead of recreating it.

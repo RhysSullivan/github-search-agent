@@ -209,15 +209,14 @@ export async function POST(req: NextRequest) {
 
       sendReasoning: true,
     });
-  } catch (error: any) {
-    console.error("Error generating response:", error.message);
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : "Internal server error";
+    console.error("Error generating response:", message);
     console.error(error);
-    return new Response(
-      JSON.stringify({ error: error.message || "Internal server error" }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }

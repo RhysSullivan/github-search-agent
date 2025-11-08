@@ -31,9 +31,12 @@ async function isSandboxAlive(sandbox: Sandbox): Promise<boolean> {
     const result = await sandbox.runCommand({ cmd: "echo", args: ["test"] });
     await result.stdout();
     return true;
-  } catch (error: any) {
+  } catch (error: unknown) {
     // If we get a 400 or similar error, sandbox is likely dead
-    if (error.message?.includes("400") || error.message?.includes("not ok")) {
+    if (
+      error instanceof Error &&
+      (error.message?.includes("400") || error.message?.includes("not ok"))
+    ) {
       return false;
     }
     // For other errors, assume sandbox might still be alive
@@ -42,11 +45,13 @@ async function isSandboxAlive(sandbox: Sandbox): Promise<boolean> {
 }
 
 // Helper to check if an error indicates a dead sandbox
-function isSandboxDeadError(error: any): boolean {
+function isSandboxDeadError(error: unknown): boolean {
   return (
-    error.message?.includes("400") ||
-    error.message?.includes("not ok") ||
-    error.message?.includes("Status code")
+    (error instanceof Error &&
+      (error.message?.includes("400") ||
+        error.message?.includes("not ok") ||
+        error.message?.includes("Status code"))) ||
+    false
   );
 }
 
@@ -114,7 +119,19 @@ async function getOrCreateSandbox(
       );
     }
 
-    const sandboxConfig: any = {
+    const sandboxConfig: {
+      source: {
+        url: string;
+        type: "git";
+      };
+      resources: { vcpus: number };
+      timeout: number;
+      runtime: string;
+      ports: number[];
+      teamId?: string;
+      projectId?: string;
+      token?: string;
+    } = {
       source: {
         url: repositoryUrl!,
         type: "git",
@@ -172,10 +189,12 @@ async function getOrCreateSandbox(
       });
 
       return sandbox;
-    } catch (error: any) {
+    } catch (error: unknown) {
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      const message =
+        error instanceof Error ? error.message : "Unknown error";
       console.error(
-        `[Sandbox] Failed to create sandbox after ${elapsed}s: ${error.message}`
+        `[Sandbox] Failed to create sandbox after ${elapsed}s: ${message}`
       );
       throw error;
     }
@@ -292,7 +311,7 @@ export const runSandboxCommandTool = tool({
         const cmdArgs = sudo ? [command, ...args] : args;
 
         let fullCommand: string;
-        let result: any;
+        let result: Awaited<ReturnType<typeof sandbox.runCommand>>;
 
         // Change directory if specified
         if (workingDirectory) {
@@ -358,7 +377,7 @@ export const runSandboxCommandTool = tool({
               ? `Output truncated. Use searchCommandOutput with commandId "${commandId}" to search the full output.`
               : undefined,
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Check if this is a sandbox death error (400 or similar)
         if (isSandboxDeadError(error) && retryCount < maxRetries) {
           console.error(
@@ -378,7 +397,9 @@ export const runSandboxCommandTool = tool({
           continue;
         }
 
-        throw new Error(`Failed to run command: ${error.message}`);
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        throw new Error(`Failed to run command: ${message}`);
       }
     }
 
@@ -456,7 +477,7 @@ export const listSandboxFilesTool = tool({
           recursive,
           output: stdout || "",
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Check if this is a sandbox death error
         if (isSandboxDeadError(error) && retryCount < maxRetries) {
           console.error(
@@ -475,7 +496,9 @@ export const listSandboxFilesTool = tool({
           continue;
         }
 
-        throw new Error(`Failed to list files: ${error.message}`);
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        throw new Error(`Failed to list files: ${message}`);
       }
     }
 
@@ -542,7 +565,7 @@ export const readSandboxFileTool = tool({
           filePath,
           content: stdout || "",
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Check if this is a sandbox death error
         if (isSandboxDeadError(error) && retryCount < maxRetries) {
           console.error(
@@ -561,7 +584,9 @@ export const readSandboxFileTool = tool({
           continue;
         }
 
-        throw new Error(`Failed to read file: ${error.message}`);
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        throw new Error(`Failed to read file: ${message}`);
       }
     }
 
@@ -781,7 +806,7 @@ export const searchSandboxFilesTool = tool({
             matchCount: matches.length,
           };
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Check if this is a sandbox death error
         if (isSandboxDeadError(error) && retryCount < maxRetries) {
           console.error(
@@ -800,7 +825,9 @@ export const searchSandboxFilesTool = tool({
           continue;
         }
 
-        throw new Error(`Failed to search files: ${error.message}`);
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        throw new Error(`Failed to search files: ${message}`);
       }
     }
 
@@ -953,8 +980,10 @@ export const searchCommandOutputTool = tool({
             ? `Found ${matches.length} matches, showing first ${maxResults}`
             : undefined,
       };
-    } catch (error: any) {
-      throw new Error(`Failed to search command output: ${error.message}`);
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Unknown error";
+      throw new Error(`Failed to search command output: ${message}`);
     }
   },
 });

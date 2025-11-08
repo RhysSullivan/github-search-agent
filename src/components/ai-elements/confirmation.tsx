@@ -39,9 +39,16 @@ type ToolUIPartApproval =
     }
   | undefined;
 
+type ApprovalState =
+  | "approval-requested"
+  | "approval-responded"
+  | "output-available"
+  | "output-error"
+  | "output-denied";
+
 type ConfirmationContextValue = {
   approval: ToolUIPartApproval;
-  state: ToolUIPart["state"];
+  state: ApprovalState;
 };
 
 const ConfirmationContext = createContext<ConfirmationContextValue | null>(
@@ -73,8 +80,17 @@ export const Confirmation = ({
     return null;
   }
 
+  // TypeScript doesn't know that state is narrowed here, so we need to assert
+  // that it's one of the approval-related states
+  const approvalState = state as
+    | "approval-requested"
+    | "approval-responded"
+    | "output-available"
+    | "output-error"
+    | "output-denied";
+
   return (
-    <ConfirmationContext.Provider value={{ approval, state }}>
+    <ConfirmationContext.Provider value={{ approval, state: approvalState }}>
       <Alert className={cn("flex flex-col gap-2", className)} {...props} />
     </ConfirmationContext.Provider>
   );
