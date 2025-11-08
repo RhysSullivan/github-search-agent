@@ -63,7 +63,7 @@ import {
   ToolInput,
   ToolOutput,
 } from "@/components/ai-elements/tool";
-import type { ToolUIPart } from "ai";
+import type { AppToolUIPart } from "@/types/chat";
 
 const models = [
   {
@@ -343,7 +343,18 @@ const ChatBotDemo = () => {
                         default:
                           // Handle tool parts
                           if (part.type.startsWith("tool-")) {
-                            const toolPart = part as ToolUIPart;
+                            const toolPart = part as AppToolUIPart;
+                            // Extract reason from input if present
+                            const inputObj =
+                              typeof toolPart.input === "object" &&
+                              toolPart.input !== null
+                                ? (toolPart.input as Record<string, unknown>)
+                                : {};
+                            const reason =
+                              typeof inputObj.reason === "string"
+                                ? inputObj.reason
+                                : undefined;
+
                             return (
                               <Tool
                                 key={`${message.id}-${i}`}
@@ -353,6 +364,7 @@ const ChatBotDemo = () => {
                                 <ToolHeader
                                   type={toolPart.type}
                                   state={toolPart.state}
+                                  reason={reason}
                                 />
                                 <ToolContent>
                                   {toolPart.input !== undefined && (

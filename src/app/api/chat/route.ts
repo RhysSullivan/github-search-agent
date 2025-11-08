@@ -1,9 +1,5 @@
-import {
-  stepCountIs,
-  streamText,
-  convertToModelMessages,
-  type UIMessage,
-} from "ai";
+import { stepCountIs, streamText, convertToModelMessages } from "ai";
+import type { AppUIMessage } from "@/types/chat";
 import { gateway } from "@ai-sdk/gateway";
 import { createGitHubApiProxyTool } from "@/tools/github-api";
 import { sandboxTools } from "@/tools/sandbox";
@@ -267,7 +263,7 @@ export async function POST(req: NextRequest) {
       model,
       webSearch,
     }: {
-      messages: UIMessage[];
+      messages: AppUIMessage[];
       model: string;
       webSearch: boolean;
     } = await req.json();

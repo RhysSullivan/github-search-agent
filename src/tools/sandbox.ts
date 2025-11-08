@@ -149,9 +149,15 @@ export const runSandboxCommandTool = tool({
         .describe(
           "Optional working directory to run the command in (default: /vercel/sandbox). You can also use 'sh -c' with 'cd' to change directories."
         ),
+      reason: z
+        .string()
+        .optional()
+        .describe(
+          "Optional explanation of why this tool is being called and what information is being sought."
+        ),
     })
   ),
-  execute: async ({ chatId, command, args, sudo, workingDirectory }) => {
+  execute: async ({ chatId, command, args, sudo, workingDirectory, reason }) => {
     let retryCount = 0;
     const maxRetries = 1;
 

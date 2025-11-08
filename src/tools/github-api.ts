@@ -41,14 +41,22 @@ export function createGitHubApiProxyTool(githubToken: string | null) {
           .describe(
             "Query parameters and path parameters as a key-value object. Path parameters will be substituted into the endpoint, query parameters will be added to the URL."
           ),
+        reason: z
+          .string()
+          .optional()
+          .describe(
+            "Optional explanation of why this tool is being called and what information is being sought."
+          ),
       })
     ),
     execute: async ({
       endpoint,
       params = {},
+      reason,
     }: {
       endpoint: string;
       params?: Record<string, unknown>;
+      reason?: string;
     }) => {
       let finalEndpoint = endpoint;
       try {
