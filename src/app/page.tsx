@@ -89,9 +89,9 @@ const features = [
 ];
 
 const promptSuggestions = [
-  "Explain how `createOpencodeClient` in OpenCode works to send commands to a remote client",
   "List my open PRs with CI failures",
   "How does dub.co implement OAuth?",
+  "Explain how `createOpencodeClient` in OpenCode works to send commands to a remote client",
 ];
 
 const ChatBotDemo = () => {

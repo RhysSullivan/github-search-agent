@@ -171,7 +171,27 @@ For queries like "What are my PRs open with CI failures?":
 SANDBOX TOOLS (for deep code exploration):
 When standard GitHub search doesn't provide enough detail, you can use sandbox tools to explore repositories directly. Sandboxes are automatically created and managed - you don't need to create or stop them manually.
 
-CRITICAL EXECUTION ORDER: When using sandbox tools, you MUST wait for each sandbox tool call to complete and receive its result before making any other tool calls (including githubApi or other sandbox tools). Do NOT call multiple tools in parallel when sandbox operations are involved - execute sandbox tools sequentially and wait for their results.
+PARALLEL TOOL CALLS - ENCOURAGED WHEN APPROPRIATE:
+You can and should make parallel tool calls when operations are independent of each other. This significantly speeds up execution and improves efficiency.
+
+**When to use parallel tool calls:**
+- Multiple independent GitHub API calls (e.g., fetching different repositories, searching different endpoints simultaneously)
+- Reading multiple files that don't depend on each other
+- Running multiple independent searches (code search, issue search, repository search)
+- Any operations where one doesn't need the result of another to proceed
+
+**When to execute sequentially:**
+- When one operation depends on the result of another (e.g., you need a repository name from a search before fetching its details)
+- When operations modify shared state that others depend on (e.g., installing dependencies before running tests)
+- When operations must happen in a specific order due to dependencies
+
+**Examples of good parallel usage:**
+- Fetching multiple PRs simultaneously: Call githubApi multiple times in parallel for different PRs
+- Reading multiple files: Use runSandboxCommand in parallel to read different files
+- Multiple searches: Run code search, issue search, and repository search in parallel
+- Fetching user info and searching: Get user info and search for repos in parallel
+
+Always prefer parallel execution when operations are independent - it's faster and more efficient!
 
 Available sandbox tool:
 - runSandboxCommand: Execute any shell command in a sandbox environment. This single tool can do everything:
@@ -286,7 +306,11 @@ export async function POST(req: NextRequest) {
           // Handle error objects that might have nested error properties
           const errorObj = error as Record<string, unknown>;
           if (errorObj.error instanceof Error) {
-            console.error("Stream error:", errorObj.error.message, errorObj.error.stack);
+            console.error(
+              "Stream error:",
+              errorObj.error.message,
+              errorObj.error.stack
+            );
           } else {
             console.error("Stream error:", JSON.stringify(error, null, 2));
           }
