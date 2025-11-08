@@ -18,7 +18,6 @@ type ReasoningContextValue = {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   duration: number | undefined;
-  setHasContent: (hasContent: boolean) => void;
 };
 
 const ReasoningContext = createContext<ReasoningContextValue | null>(null);
@@ -63,7 +62,6 @@ export const Reasoning = memo(
     });
 
     const [startTime, setStartTime] = useState<number | null>(null);
-    const [hasContent, setHasContent] = useState(false);
 
     // Track duration when streaming starts and ends
     useEffect(() => {
@@ -77,20 +75,13 @@ export const Reasoning = memo(
       }
     }, [isStreaming, startTime, setDuration]);
 
-    // Auto-open when content appears (streaming or has content)
-    useEffect(() => {
-      if ((isStreaming || hasContent) && !isOpen) {
-        setIsOpen(true);
-      }
-    }, [isStreaming, hasContent, isOpen, setIsOpen]);
-
     const handleOpenChange = (newOpen: boolean) => {
       setIsOpen(newOpen);
     };
 
     return (
       <ReasoningContext.Provider
-        value={{ isStreaming, isOpen, setIsOpen, duration, setHasContent }}
+        value={{ isStreaming, isOpen, setIsOpen, duration }}
       >
         <Collapsible
           className={cn("not-prose mb-4", className)}
@@ -114,7 +105,7 @@ const getThinkingMessage = (isStreaming: boolean, duration?: number) => {
   if (duration === undefined) {
     return <p>Thought for a few seconds</p>;
   }
-  return <p>Thought for {duration} {duration === 1 ? "second" : "seconds"}</p>;
+  return <p>Thought for {duration} seconds</p>;
 };
 
 export const ReasoningTrigger = memo(
@@ -153,29 +144,18 @@ export type ReasoningContentProps = ComponentProps<
 };
 
 export const ReasoningContent = memo(
-  ({ className, children, ...props }: ReasoningContentProps) => {
-    const { setHasContent } = useReasoning();
-
-    // Notify parent when content exists
-    useEffect(() => {
-      if (children && children.trim().length > 0) {
-        setHasContent(true);
-      }
-    }, [children, setHasContent]);
-
-    return (
-      <CollapsibleContent
-        className={cn(
-          "mt-4 text-sm",
-          "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
-          className
-        )}
-        {...props}
-      >
-        <Streamdown {...props}>{children}</Streamdown>
-      </CollapsibleContent>
-    );
-  }
+  ({ className, children, ...props }: ReasoningContentProps) => (
+    <CollapsibleContent
+      className={cn(
+        "mt-4 text-sm",
+        "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
+        className
+      )}
+      {...props}
+    >
+      <Streamdown {...props}>{children}</Streamdown>
+    </CollapsibleContent>
+  )
 );
 
 Reasoning.displayName = "Reasoning";

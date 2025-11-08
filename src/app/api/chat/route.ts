@@ -239,6 +239,13 @@ export async function POST(req: NextRequest) {
         searchCommandOutput: sandboxTools.searchCommandOutput,
         // ...grepAppTools,
       },
+      providerOptions: {
+        openai: {
+          // https://platform.openai.com/docs/api-reference/responses/create#responses-create-reasoning
+          reasoningEffort: "high", // minimal (new to this model), low, medium, high
+          reasoningSummary: "detailed", // auto, concise, detailed
+        },
+      },
       stopWhen: stepCountIs(150),
       onError: (error) => {
         console.error("Stream error:", error);
