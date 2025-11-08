@@ -1,23 +1,24 @@
 "use client";
 
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { cn } from "@/lib/utils";
+
 import { BrainIcon, ChevronDownIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { createContext, memo, useContext, useEffect, useState } from "react";
 import { Streamdown } from "streamdown";
 import { Shimmer } from "./shimmer";
+import { cn } from "@/lib/utils";
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "../ui/collapsible";
 
 type ReasoningContextValue = {
   isStreaming: boolean;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
-  duration: number | undefined;
+  duration: number;
 };
 
 const ReasoningContext = createContext<ReasoningContextValue | null>(null);
@@ -38,6 +39,7 @@ export type ReasoningProps = ComponentProps<typeof Collapsible> & {
   duration?: number;
 };
 
+const AUTO_CLOSE_DELAY = 1000;
 const MS_IN_S = 1000;
 
 export const Reasoning = memo(
@@ -45,7 +47,7 @@ export const Reasoning = memo(
     className,
     isStreaming = false,
     open,
-    defaultOpen = false,
+    defaultOpen = true,
     onOpenChange,
     duration: durationProp,
     children,
@@ -58,9 +60,10 @@ export const Reasoning = memo(
     });
     const [duration, setDuration] = useControllableState({
       prop: durationProp,
-      defaultProp: undefined,
+      defaultProp: 0,
     });
 
+    const [hasAutoClosed, setHasAutoClosed] = useState(false);
     const [startTime, setStartTime] = useState<number | null>(null);
 
     // Track duration when streaming starts and ends
@@ -74,6 +77,19 @@ export const Reasoning = memo(
         setStartTime(null);
       }
     }, [isStreaming, startTime, setDuration]);
+
+    // Auto-open when streaming starts, auto-close when streaming ends (once only)
+    useEffect(() => {
+      if (defaultOpen && !isStreaming && isOpen && !hasAutoClosed) {
+        // Add a small delay before closing to allow user to see the content
+        const timer = setTimeout(() => {
+          setIsOpen(false);
+          setHasAutoClosed(true);
+        }, AUTO_CLOSE_DELAY);
+
+        return () => clearTimeout(timer);
+      }
+    }, [isStreaming, isOpen, defaultOpen, setIsOpen, hasAutoClosed]);
 
     const handleOpenChange = (newOpen: boolean) => {
       setIsOpen(newOpen);
@@ -105,7 +121,11 @@ const getThinkingMessage = (isStreaming: boolean, duration?: number) => {
   if (duration === undefined) {
     return <p>Thought for a few seconds</p>;
   }
-  return <p>Thought for {duration} seconds</p>;
+  return (
+    <p>
+      Thought for {duration} {duration === 1 ? "second" : "seconds"}
+    </p>
+  );
 };
 
 export const ReasoningTrigger = memo(
