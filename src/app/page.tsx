@@ -88,8 +88,7 @@ const features = [
 const promptSuggestions = [
   "Explain how remote connections in OpenCode are implemented",
   "List my open PRs with CI failures",
-  "Show me TypeScript best practices",
-  "Analyze this repository structure",
+  "How does dub.co implement OAuth?",
 ];
 
 const ChatBotDemo = () => {
