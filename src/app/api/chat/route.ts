@@ -5,13 +5,14 @@ import {
   type UIMessage,
 } from "ai";
 import { gateway } from "@ai-sdk/gateway";
-import { experimental_createMCPClient } from "@ai-sdk/mcp";
 import { createGitHubSearchTool } from "@/tools/search-github";
 import { createGitHubApiTools } from "@/tools/github-api";
 import { sandboxTools } from "@/tools/sandbox";
 import { NextRequest } from "next/server";
-import { auth, getGitHubToken } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getGitHubToken } from "@/lib/auth";
+import { fetchQuery } from "convex/nextjs";
+import { api } from "../../../../convex/_generated/api";
+import { getToken } from "@/lib/auth-server";
 
 function buildSystemPrompt(isAuthenticated: boolean): string {
   const authStatus = isAuthenticated
@@ -87,14 +88,6 @@ SEARCH STRATEGY:
    - Try broader searches first, then narrow down
 
 5. Always search both code AND issues when looking for functionality - issues often contain discussions about missing features or workarounds.
-
-GREP.APP MCP TOOLS (for faster code search):
-You have access to grep.app MCP tools which provide a lighter weight, faster version of GitHub code search. These tools are optimized for speed but have limitations:
-- Limited to approximately ~1 million public repositories (not all of GitHub)
-- Faster response times compared to regular GitHub search
-- Best for searching common, popular repositories
-- Use when you need quick code pattern searches across well-known repos
-- If grep.app search doesn't find results, fall back to the regular githubSearch tool which searches the full GitHub index
 
 GITHUB API TOOLS (for user-specific queries):
 When users ask about their own GitHub activity (e.g., "What are my PRs?", "Show me my open PRs with CI failures", "What issues did I create?"), use the GitHub API tools:
@@ -192,27 +185,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Get session and GitHub access token
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const token = await getToken();
+    const sessionResult = await fetchQuery(api.auth.getSession, {}, { token });
 
     let githubToken: string | null = null;
-    if (session?.user?.id) {
-      githubToken = await getGitHubToken(session.user.id);
+    if (sessionResult?.user?.id) {
+      githubToken = await getGitHubToken(sessionResult.user.id);
     }
-
-    // Create MCP client for grep.app (lighter weight, faster GitHub code search)
-    // Limited to ~1 million public repos but faster than regular GitHub search
-    const grepAppMCPClient = await experimental_createMCPClient({
-      name: "grep-app",
-      transport: {
-        type: "http",
-        url: "https://mcp.grep.app",
-      },
-    });
-
-    // Get tools from grep.app MCP client
-    const grepAppTools = await grepAppMCPClient.tools();
 
     // Create GitHub tools with user's token
     const githubSearchTool = createGitHubSearchTool(githubToken);
@@ -237,7 +216,9 @@ export async function POST(req: NextRequest) {
         readSandboxFile: sandboxTools.readFile,
         searchSandboxFiles: sandboxTools.searchFiles,
         searchCommandOutput: sandboxTools.searchCommandOutput,
-        // ...grepAppTools,
+      },
+      onError: (error) => {
+        console.error("Stream error:", error);
       },
       providerOptions: {
         openai: {
@@ -247,9 +228,6 @@ export async function POST(req: NextRequest) {
         },
       },
       stopWhen: stepCountIs(150),
-      onError: (error) => {
-        console.error("Stream error:", error);
-      },
     });
 
     // send sources and reasoning back to the client
@@ -261,8 +239,6 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Internal server error";
-    console.error("Error generating response:", message);
-    console.error(error);
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

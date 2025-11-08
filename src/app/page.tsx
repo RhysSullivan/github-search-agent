@@ -276,6 +276,8 @@ const ChatBotDemo = () => {
                     {message.parts.map((part, i) => {
                       switch (part.type) {
                         case "text":
+                          const isLastMessage =
+                            message.id === messages.at(-1)?.id;
                           return (
                             <Fragment key={`${message.id}-${i}`}>
                               <Message from={message.role}>
@@ -283,25 +285,26 @@ const ChatBotDemo = () => {
                                   <MessageResponse>{part.text}</MessageResponse>
                                 </MessageContent>
                               </Message>
-                              {message.role === "assistant" &&
-                                i === messages.length - 1 && (
-                                  <MessageActions className="mt-2">
+                              {message.role === "assistant" && (
+                                <MessageActions className="mt-2">
+                                  {isLastMessage && (
                                     <MessageAction
                                       onClick={() => regenerate()}
                                       label="Retry"
                                     >
                                       <RefreshCcwIcon className="size-3" />
                                     </MessageAction>
-                                    <MessageAction
-                                      onClick={() =>
-                                        navigator.clipboard.writeText(part.text)
-                                      }
-                                      label="Copy"
-                                    >
-                                      <CopyIcon className="size-3" />
-                                    </MessageAction>
-                                  </MessageActions>
-                                )}
+                                  )}
+                                  <MessageAction
+                                    onClick={() =>
+                                      navigator.clipboard.writeText(part.text)
+                                    }
+                                    label="Copy"
+                                  >
+                                    <CopyIcon className="size-3" />
+                                  </MessageAction>
+                                </MessageActions>
+                              )}
                             </Fragment>
                           );
                         case "reasoning":

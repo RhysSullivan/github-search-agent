@@ -154,10 +154,6 @@ async function getOrCreateSandbox(
       sandboxConfig.token = process.env.VERCEL_TOKEN;
     }
 
-    // Log progress
-    console.error(`[Sandbox] Creating sandbox for ${repositoryUrl}...`);
-    const startTime = Date.now();
-
     // Add a timeout wrapper to prevent indefinite hanging
     const creationTimeoutMs = ms("10m"); // 10 minute timeout for creation
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -176,10 +172,6 @@ async function getOrCreateSandbox(
         timeoutPromise,
       ]);
       const sandboxId = sandbox.sandboxId;
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.error(
-        `[Sandbox] Sandbox created successfully in ${elapsed}s (ID: ${sandboxId})`
-      );
 
       sandboxByChatId.set(chatId, {
         sandbox,
@@ -190,12 +182,9 @@ async function getOrCreateSandbox(
 
       return sandbox;
     } catch (error: unknown) {
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       const message =
         error instanceof Error ? error.message : "Unknown error";
-      console.error(
-        `[Sandbox] Failed to create sandbox after ${elapsed}s: ${message}`
-      );
+      console.error(`[Sandbox] Failed to create sandbox: ${message}`);
       throw error;
     }
   }
@@ -380,11 +369,6 @@ export const runSandboxCommandTool = tool({
       } catch (error: unknown) {
         // Check if this is a sandbox death error (400 or similar)
         if (isSandboxDeadError(error) && retryCount < maxRetries) {
-          console.error(
-            `[Sandbox] Sandbox appears dead, removing from cache and retrying (attempt ${
-              retryCount + 1
-            }/${maxRetries + 1})`
-          );
           // Remove dead sandbox and get repositoryUrl for retry
           const retryRepositoryUrl = await handleDeadSandbox(
             chatId,

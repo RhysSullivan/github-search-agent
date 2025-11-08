@@ -1,0 +1,4 @@
+{
+  "$schema": "https://json.schemastore.org/vercel",
+  "buildCommand": "bunx convex deploy --cmd 'bun run build'"
+}
