@@ -11,3 +11,4 @@ export function CurrentUser() {
   return <p>{session.user.email}</p>;
 }
 
+

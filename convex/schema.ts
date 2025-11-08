@@ -10,3 +10,4 @@ export default defineSchema({
   }).index("by_chatId", ["chatId"]),
 });
 
+
