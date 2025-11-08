@@ -100,10 +100,7 @@ export const ToolHeader = ({
   </CollapsibleTrigger>
 );
 
-export type ToolContentProps = Omit<
-  ComponentProps<typeof CollapsibleContent>,
-  "onOpenAutoFocus"
->;
+export type ToolContentProps = ComponentProps<typeof CollapsibleContent>;
 
 export const ToolContent = ({ className, ...props }: ToolContentProps) => (
   <CollapsibleContent
