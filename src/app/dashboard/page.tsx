@@ -12,7 +12,7 @@ export default async function DashboardPage() {
     // Basic redirect when not logged in
     return (
       <main>
-        <p>Not authenticated. <a href="/login">Go to login</a></p>
+        <p>Not authenticated. Please sign in using the button in the navbar.</p>
       </main>
     );
   }
@@ -25,4 +25,3 @@ export default async function DashboardPage() {
     </main>
   );
 }
-

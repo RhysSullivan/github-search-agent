@@ -3,13 +3,15 @@ import { zodSchema } from "ai";
 import { z } from "zod";
 import { Octokit } from "@octokit/rest";
 
-// Initialize Octokit with GitHub token
-const octokit = new Octokit({
-  auth: process.env.GITHUB_TOKEN,
-});
+// Helper function to create GitHub search tool with token
+export function createGitHubSearchTool(githubToken: string | null) {
+  // For public searches, we can use unauthenticated requests, but authenticated requests have higher rate limits
+  // If no token is provided, we'll still allow searches but with lower rate limits
+  const octokit = githubToken
+    ? new Octokit({ auth: githubToken })
+    : new Octokit();
 
-// GitHub search tool with comprehensive search capabilities
-export const githubSearchTool = tool({
+  return tool({
   description: `Powerful GitHub search tool that can search across repositories, issues, pull requests, code, users, organizations, commits, topics, and discussions. 
     
   IMPORTANT SEARCH STRATEGY:
@@ -109,13 +111,6 @@ export const githubSearchTool = tool({
     order: "asc" | "desc";
   }) => {
     try {
-      // Validate GitHub token
-      if (!process.env.GITHUB_TOKEN) {
-        throw new Error(
-          "GITHUB_TOKEN environment variable is not set. Please set it with your GitHub Personal Access Token."
-        );
-      }
-
       // Build the search query
       let searchQuery = query;
       if (repo) {
@@ -397,7 +392,7 @@ export const githubSearchTool = tool({
       // Handle authentication errors
       if (error.status === 401) {
         throw new Error(
-          "GitHub API authentication failed. Please check that your GITHUB_TOKEN is valid and has the necessary permissions."
+          "GitHub API authentication failed. Please sign in with GitHub to use authenticated searches."
         );
       }
 
@@ -407,4 +402,5 @@ export const githubSearchTool = tool({
       );
     }
   },
-});
+  });
+}

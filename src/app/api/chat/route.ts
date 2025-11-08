@@ -6,10 +6,12 @@ import {
 } from "ai";
 import { gateway } from "@ai-sdk/gateway";
 import { experimental_createMCPClient } from "@ai-sdk/mcp";
-import { githubSearchTool } from "@/tools/search-github";
-import { githubApiTools } from "@/tools/github-api";
+import { createGitHubSearchTool } from "@/tools/search-github";
+import { createGitHubApiTools } from "@/tools/github-api";
 import { sandboxTools } from "@/tools/sandbox";
 import { NextRequest } from "next/server";
+import { auth, getGitHubToken } from "@/lib/auth";
+import { headers } from "next/headers";
 
 const systemPrompt = `You are a GitHub search expert. Your goal is to help users find information on GitHub and answer questions about their own GitHub activity.
 
@@ -150,6 +152,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Get session and GitHub access token
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    let githubToken: string | null = null;
+    if (session?.user?.id) {
+      githubToken = getGitHubToken(session.user.id);
+    }
+
     // Create MCP client for grep.app (lighter weight, faster GitHub code search)
     // Limited to ~1 million public repos but faster than regular GitHub search
     const grepAppMCPClient = await experimental_createMCPClient({
@@ -162,6 +174,10 @@ export async function POST(req: NextRequest) {
 
     // Get tools from grep.app MCP client
     const grepAppTools = await grepAppMCPClient.tools();
+
+    // Create GitHub tools with user's token
+    const githubSearchTool = createGitHubSearchTool(githubToken);
+    const githubApiTools = createGitHubApiTools(githubToken);
 
     const result = streamText({
       model: gateway("openai/gpt-5-mini"),
@@ -179,7 +195,7 @@ export async function POST(req: NextRequest) {
         readSandboxFile: sandboxTools.readFile,
         searchSandboxFiles: sandboxTools.searchFiles,
         searchCommandOutput: sandboxTools.searchCommandOutput,
-        ...grepAppTools,
+        // ...grepAppTools,
       },
       stopWhen: stepCountIs(150),
       onError: (error) => {
