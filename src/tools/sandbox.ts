@@ -112,13 +112,6 @@ async function getOrCreateSandbox(
     !existing ||
     (repositoryUrl && existing.repositoryUrl !== repositoryUrl)
   ) {
-    // Validate authentication
-    if (!process.env.VERCEL_OIDC_TOKEN && !process.env.VERCEL_TOKEN) {
-      throw new Error(
-        "Vercel authentication not found. Please run 'vercel link' and 'vercel env pull' to set up authentication, or set VERCEL_TOKEN, VERCEL_TEAM_ID, and VERCEL_PROJECT_ID environment variables."
-      );
-    }
-
     const sandboxConfig: {
       source: {
         url: string;
@@ -182,8 +175,7 @@ async function getOrCreateSandbox(
 
       return sandbox;
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : "Unknown error";
+      const message = error instanceof Error ? error.message : "Unknown error";
       console.error(`[Sandbox] Failed to create sandbox: ${message}`);
       throw error;
     }
@@ -965,8 +957,7 @@ export const searchCommandOutputTool = tool({
             : undefined,
       };
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : "Unknown error";
+      const message = error instanceof Error ? error.message : "Unknown error";
       throw new Error(`Failed to search command output: ${message}`);
     }
   },
