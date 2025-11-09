@@ -260,6 +260,7 @@ const ChatBotDemo = () => {
   const [webSearch, setWebSearch] = useState(false);
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
   const [botError, setBotError] = useState<string | null>(null);
+  const [generalError, setGeneralError] = useState<string | null>(null);
   const { data: session } = authClient.useSession();
   const isAuthenticated = !!session;
   const { messages, sendMessage, status, regenerate, stop } = useChat({
@@ -365,7 +366,43 @@ const ChatBotDemo = () => {
         setRateLimitError(
           `You have been rate limited. The limit is ${limitText}. Tweet at rhys if you have a legitimate use case and need higher limits.`
         );
+        return;
       }
+
+      // Handle all other errors
+      let errorText = errorMessage;
+      try {
+        // Try to extract error message from response
+        if (error.cause && typeof error.cause === "object") {
+          if ("response" in error.cause) {
+            const response = error.cause.response as Response | undefined;
+            if (response) {
+              try {
+                const data = await response.json();
+                if (data.message) {
+                  errorText = data.message;
+                } else if (data.error) {
+                  errorText = data.error;
+                }
+              } catch {
+                // Response might not be JSON, use status text
+                if (response.statusText) {
+                  errorText = response.statusText;
+                }
+              }
+            }
+          } else if (
+            "message" in error.cause &&
+            typeof error.cause.message === "string"
+          ) {
+            errorText = error.cause.message;
+          }
+        }
+      } catch {
+        // Fall through to using errorMessage
+      }
+
+      setGeneralError(errorText || "An error occurred. Please try again.");
     },
   });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -390,10 +427,10 @@ const ChatBotDemo = () => {
       return;
     }
 
-    // Clear any previous rate limit errors
+    // Clear any previous errors
     setRateLimitError(null);
-    // Clear any previous bot errors
     setBotError(null);
+    setGeneralError(null);
 
     // Wrap sendMessage to catch 429 errors
     try {
@@ -431,6 +468,13 @@ const ChatBotDemo = () => {
           if (!botError) {
             setBotError(
               "Your request was blocked because it appears to be from a bot. If you believe this is an error, please contact support."
+            );
+          }
+        } else {
+          // Handle any other errors
+          if (!generalError) {
+            setGeneralError(
+              error.message || "An error occurred. Please try again."
             );
           }
         }
@@ -552,6 +596,13 @@ const ChatBotDemo = () => {
                 <AlertCircleIcon />
                 <AlertTitle>Bot Detected</AlertTitle>
                 <AlertDescription>{botError}</AlertDescription>
+              </Alert>
+            )}
+            {generalError && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircleIcon />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{generalError}</AlertDescription>
               </Alert>
             )}
             {messages.length === 0 && (
