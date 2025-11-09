@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { LogOut, User, Github, MessageSquare } from "lucide-react";
+import { LogOut, User, Github, MessageSquare, MessageSquarePlus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { GitHubLoginButton } from "@/components/github-login-button";
@@ -20,10 +20,18 @@ export function Navbar() {
   const { data: session, isPending } = authClient.useSession();
   const router = useRouter();
 
+  const handleNewChat = () => {
+    window.location.reload();
+  };
+
   if (isPending) {
     return (
       <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex h-14 items-center justify-end px-4 gap-2">
+          <Button variant="outline" size="sm" onClick={handleNewChat}>
+            <MessageSquarePlus className="h-4 w-4" />
+            <span>New Chat</span>
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link
               href="https://twitter.com/intent/tweet?screen_name=rhyssullivan&text=@rhyssullivan%20I%20have%20feedback%20about%20betterpilot%20"
@@ -56,6 +64,10 @@ export function Navbar() {
     return (
       <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex h-14 items-center justify-end px-4 gap-2">
+          <Button variant="outline" size="sm" onClick={handleNewChat}>
+            <MessageSquarePlus className="h-4 w-4" />
+            <span>New Chat</span>
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link
               href="https://twitter.com/intent/tweet?screen_name=rhyssullivan&text=@rhyssullivan%20I%20have%20feedback%20about%20betterpilot%20"
@@ -101,6 +113,10 @@ export function Navbar() {
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-14 items-center justify-end px-4 gap-2">
+        <Button variant="outline" size="sm" onClick={handleNewChat}>
+          <MessageSquarePlus className="h-4 w-4" />
+          <span>New Chat</span>
+        </Button>
         <Button variant="outline" size="sm" asChild>
           <Link
             href="https://twitter.com/intent/tweet?text=@rhyssullivan%20I%20have%20feedback%20about%20betterpilot%20"
