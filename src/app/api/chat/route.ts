@@ -285,10 +285,17 @@ export async function POST(req: NextRequest) {
     const verification = await checkBotId();
 
     if (verification.isBot) {
-      return new Response(JSON.stringify({ error: "Access denied" }), {
-        status: 403,
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          error: "Bot detected",
+          message:
+            "Your request was blocked because it appears to be from a bot. If you believe this is an error, please contact support.",
+        }),
+        {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
     }
 
     // Check rate limiting based on authentication status

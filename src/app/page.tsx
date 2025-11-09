@@ -259,12 +259,58 @@ const ChatBotDemo = () => {
   const [model, setModel] = useState<GatewayModelId>("openai/gpt-5-mini");
   const [webSearch, setWebSearch] = useState(false);
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
+  const [botError, setBotError] = useState<string | null>(null);
   const { data: session } = authClient.useSession();
   const isAuthenticated = !!session;
   const { messages, sendMessage, status, regenerate, stop } = useChat({
     onError: async (error) => {
-      // Check if it's a 429 rate limit error
       const errorMessage = error.message || "";
+
+      // Check if it's a 403 bot detection error
+      if (
+        errorMessage.includes("403") ||
+        errorMessage.toLowerCase().includes("bot")
+      ) {
+        // Try to extract the error message from the response
+        try {
+          // The error might have a cause with response data
+          if (error.cause && typeof error.cause === "object") {
+            // Check if there's a response object
+            if ("response" in error.cause) {
+              const response = error.cause.response as Response | undefined;
+              if (response && response.status === 403) {
+                try {
+                  const data = await response.json();
+                  if (data.message) {
+                    setBotError(data.message);
+                    return;
+                  }
+                } catch {
+                  // Response might not be JSON, fall through
+                }
+              }
+            }
+            // Check if message is directly in cause
+            if (
+              "message" in error.cause &&
+              typeof error.cause.message === "string"
+            ) {
+              if (error.cause.message.toLowerCase().includes("bot")) {
+                setBotError(error.cause.message);
+                return;
+              }
+            }
+          }
+        } catch {
+          // Fall through to default message
+        }
+        setBotError(
+          "Your request was blocked because it appears to be from a bot. If you believe this is an error, please contact support."
+        );
+        return;
+      }
+
+      // Check if it's a 429 rate limit error
       if (
         errorMessage.includes("429") ||
         errorMessage.toLowerCase().includes("rate limit")
@@ -346,6 +392,8 @@ const ChatBotDemo = () => {
 
     // Clear any previous rate limit errors
     setRateLimitError(null);
+    // Clear any previous bot errors
+    setBotError(null);
 
     // Wrap sendMessage to catch 429 errors
     try {
@@ -364,15 +412,27 @@ const ChatBotDemo = () => {
       setInput("");
     } catch (error) {
       // Fallback error handling - onError should handle it, but this is a safety net
-      if (error instanceof Error && error.message.includes("429")) {
-        // Error already handled by onError, but ensure we have a message
-        if (!rateLimitError) {
-          const limitText = isAuthenticated
-            ? "20 messages per hour for signed in users"
-            : "10 messages per hour for signed out users, 20 for signed in";
-          setRateLimitError(
-            `You have been rate limited. The limit is ${limitText}. Tweet at rhys if you have a legitimate use case and need higher limits.`
-          );
+      if (error instanceof Error) {
+        if (error.message.includes("429")) {
+          // Error already handled by onError, but ensure we have a message
+          if (!rateLimitError) {
+            const limitText = isAuthenticated
+              ? "20 messages per hour for signed in users"
+              : "10 messages per hour for signed out users, 20 for signed in";
+            setRateLimitError(
+              `You have been rate limited. The limit is ${limitText}. Tweet at rhys if you have a legitimate use case and need higher limits.`
+            );
+          }
+        } else if (
+          error.message.includes("403") ||
+          error.message.toLowerCase().includes("bot")
+        ) {
+          // Error already handled by onError, but ensure we have a message
+          if (!botError) {
+            setBotError(
+              "Your request was blocked because it appears to be from a bot. If you believe this is an error, please contact support."
+            );
+          }
         }
       }
     }
@@ -461,6 +521,13 @@ const ChatBotDemo = () => {
                   <AlertDescription className="inline-block!">
                     {renderRateLimitError(rateLimitError)}
                   </AlertDescription>
+                </Alert>
+              )}
+              {botError && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircleIcon />
+                  <AlertTitle>Bot Detected</AlertTitle>
+                  <AlertDescription>{botError}</AlertDescription>
                 </Alert>
               )}
               <div className="mb-4 min-w-0">
@@ -556,6 +623,13 @@ const ChatBotDemo = () => {
                   <AlertDescription className="inline-block!">
                     {renderRateLimitError(rateLimitError)}
                   </AlertDescription>
+                </Alert>
+              )}
+              {botError && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircleIcon />
+                  <AlertTitle>Bot Detected</AlertTitle>
+                  <AlertDescription>{botError}</AlertDescription>
                 </Alert>
               )}
               <PromptInput onSubmit={handleSubmit} globalDrop multiple>
