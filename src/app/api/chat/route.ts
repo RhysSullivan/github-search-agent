@@ -45,6 +45,20 @@ When the user asks about "my" repositories, PRs, issues, or other GitHub activit
 `
     : "";
 
+  const webSearchSection = isAuthenticated
+    ? `
+**webSearch** - Web search with Exa (requires authentication):
+- Find documentation sites, tutorials, articles not on GitHub
+- Search for official docs, examples, and integration guides
+- Returns titles, URLs, snippets, and relevance scores
+- Use for each component when researching multiple topics
+
+**fetchPages** - Get full page content (requires authentication):
+- Fetch complete content of web pages after webSearch
+- Use when snippets aren't enough - get full documentation pages
+`
+    : "";
+
   const toolRequirements = `
 YOUR TOOLS - USE THEM ALL:
 
@@ -55,16 +69,7 @@ YOUR TOOLS - USE THEM ALL:
 - Works without auth for public data (lower rate limits), requires auth for user-specific endpoints
 - If you get a 401, inform user they need to sign in; if rate limited, suggest signing in for higher limits
 
-**webSearch** - Web search with Exa (always available):
-- Find documentation sites, tutorials, articles not on GitHub
-- Search for official docs, examples, and integration guides
-- Returns titles, URLs, snippets, and relevance scores
-- Use for each component when researching multiple topics
-
-**fetchPages** - Get full page content (always available):
-- Fetch complete content of web pages after webSearch
-- Use when snippets aren't enough - get full documentation pages
-
+${webSearchSection}
 **runSandboxCommand** - Execute commands (always available):
 - Run any shell command: ls, cat, grep, find, git clone, bun install, npm test, etc.
 - Explore codebases, read files, run code, test implementations
@@ -74,9 +79,9 @@ ${authStatus}
 
 **Tool usage strategy:**
 - Use tools proactively - don't wait for permission, use them to answer questions thoroughly
-- Combine tools: GitHub search + web search + sandbox exploration for comprehensive answers
+- Combine tools: GitHub search${isAuthenticated ? " + web search" : ""} + sandbox exploration for comprehensive answers
 - Use parallel calls when possible - fetch multiple things simultaneously
-- For integration questions: research each component with BOTH GitHub and web search
+${isAuthenticated ? "- For integration questions: research each component with BOTH GitHub and web search" : ""}
 - When documentation is unclear: use sandbox to clone repos and read files directly`;
 
   return `${toolRequirements}
@@ -119,16 +124,13 @@ When asked about ANY unfamiliar topic (library, framework, API, concept, etc.):
 1. Find the repository: endpoint="/search/repositories", params={q: "topic-name"} (look for official repo)
 2. Read README.md first: endpoint="/repos/{owner}/{repo}/contents/README.md" (decode base64 content)
 3. Check for docs: endpoint="/repos/{owner}/{repo}/contents/docs" or endpoint="/search/code", params={q: "extension:md repo:owner/repo-name"}
-4. Use webSearch for official documentation sites if the topic has a website
-5. Use fetchPages to get full content of relevant documentation pages
-6. Search code/issues within the repo: endpoint="/search/code", params={q: "repo:owner/repo-name function-name"}
-7. Only THEN provide answers based on actual understanding
+${isAuthenticated ? '4. Use webSearch for official documentation sites if the topic has a website\n5. Use fetchPages to get full content of relevant documentation pages\n6. Search code/issues within the repo: endpoint="/search/code", params={q: "repo:owner/repo-name function-name"}\n7. Only THEN provide answers based on actual understanding' : '4. Search code/issues within the repo: endpoint="/search/code", params={q: "repo:owner/repo-name function-name"}\n5. Only THEN provide answers based on actual understanding'}
 
 For integration questions (e.g., "How to integrate X with Y?"):
 - If components are ambiguous (e.g., multiple "WorkflowSDK" products exist), ask a SHORT clarifying question and STOP - wait for the user's confirmation before proceeding. Do NOT assume an answer and provide a full response.
 - Only after receiving clarification: Identify ALL components mentioned
 - Research EACH component independently (do this in parallel when possible)
-- Use BOTH GitHub search AND web search
+${isAuthenticated ? "- Use BOTH GitHub search AND web search" : "- Use GitHub search"}
 - Only AFTER understanding ALL components: analyze how they work together and search for existing integrations
 - Provide a concise answer, not a comprehensive architecture document unless explicitly requested
 
@@ -320,6 +322,8 @@ export async function POST(req: NextRequest) {
 
     // isAuthenticated is already determined above for rate limiting
 
+    // Build tools object conditionally - only include web search tools if authenticated
+
     const result = streamText({
       model: gateway(model),
       system: buildSystemPrompt(isAuthenticated, userInfo),
@@ -327,8 +331,12 @@ export async function POST(req: NextRequest) {
       tools: {
         githubApi: githubApiProxyTool,
         runSandboxCommand: sandboxTools.runCommand,
-        webSearch: webSearchTool,
-        fetchPages,
+        ...(isAuthenticated
+          ? {
+              webSearch: webSearchTool,
+              fetchPages,
+            }
+          : {}),
       },
       onError: (error) => {
         // Safely log error - handle different error structures

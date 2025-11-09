@@ -6,6 +6,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ToolUIPart } from "ai";
 import type { AppToolUIPart } from "@/types/chat";
@@ -16,19 +17,56 @@ import {
   ClockIcon,
   WrenchIcon,
   XCircleIcon,
+  ChevronDown,
 } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
-import { isValidElement } from "react";
+import {
+  isValidElement,
+  memo,
+  useState,
+  useMemo,
+  createContext,
+  useContext,
+} from "react";
 import { CodeBlock } from "./code-block";
+
+type ToolContextType = {
+  isOpen: boolean;
+};
+
+const ToolContext = createContext<ToolContextType>({ isOpen: false });
 
 export type ToolProps = ComponentProps<typeof Collapsible>;
 
-export const Tool = ({ className, ...props }: ToolProps) => (
-  <Collapsible
-    className={cn("not-prose mb-4 w-full rounded-md border", className)}
-    {...props}
-  />
-);
+export const Tool = ({
+  className,
+  onOpenChange,
+  open,
+  defaultOpen,
+  ...props
+}: ToolProps) => {
+  const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false);
+  const isOpen = open ?? internalOpen;
+
+  const handleOpenChange = (newOpen: boolean) => {
+    if (open === undefined) {
+      setInternalOpen(newOpen);
+    }
+    onOpenChange?.(newOpen);
+  };
+
+  return (
+    <ToolContext.Provider value={{ isOpen }}>
+      <Collapsible
+        className={cn("not-prose mb-4 w-full rounded-md border", className)}
+        onOpenChange={handleOpenChange}
+        open={isOpen}
+        defaultOpen={defaultOpen}
+        {...props}
+      />
+    </ToolContext.Provider>
+  );
+};
 
 export type ToolHeaderProps = {
   title?: string;
@@ -93,7 +131,7 @@ export const ToolHeader = ({
   return (
     <CollapsibleTrigger
       className={cn(
-        "sticky top-0 z-10 flex w-full items-center justify-between gap-2 sm:gap-4 rounded-t-md border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-2 sm:p-3 data-[state=closed]:bg-transparent data-[state=closed]:backdrop-blur-none data-[state=closed]:border-b-0",
+        "sticky top-0 z-10 flex w-full items-center justify-between gap-2 sm:gap-4 rounded-t-md border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80 p-2 sm:p-3 data-[state=closed]:bg-transparent data-[state=closed]:backdrop-blur-none data-[state=closed]:border-b-0",
         className
       )}
       {...props}
@@ -134,6 +172,8 @@ export type ToolInputProps = ComponentProps<"div"> & {
 };
 
 export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
+  const { isOpen } = useContext(ToolContext);
+
   // Extract reason if present and remove it from display
   const inputObj =
     typeof input === "object" && input !== null
@@ -153,6 +193,8 @@ export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
         <CodeBlock
           code={JSON.stringify(inputWithoutReason, null, 2)}
           language="json"
+          lazy={true}
+          isVisible={isOpen}
         />
       </div>
     </div>
@@ -162,44 +204,130 @@ export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
 export type ToolOutputProps = ComponentProps<"div"> & {
   output: ToolUIPart["output"];
   errorText: ToolUIPart["errorText"];
+  isVisible?: boolean;
 };
 
-export const ToolOutput = ({
-  className,
-  output,
-  errorText,
-  ...props
-}: ToolOutputProps) => {
-  if (!(output || errorText)) {
-    return null;
-  }
+// Threshold for truncation (characters)
+const TRUNCATE_THRESHOLD = 10000;
+const INITIAL_DISPLAY_LENGTH = 5000;
 
-  let Output = <div>{output as ReactNode}</div>;
+export const ToolOutput = memo(
+  ({
+    className,
+    output,
+    errorText,
+    isVisible: isVisibleProp,
+    ...props
+  }: ToolOutputProps) => {
+    const { isOpen } = useContext(ToolContext);
+    const isVisible = isVisibleProp ?? isOpen;
+    const [isExpanded, setIsExpanded] = useState(false);
 
-  if (typeof output === "object" && !isValidElement(output)) {
-    Output = (
-      <CodeBlock code={JSON.stringify(output, null, 2)} language="json" />
-    );
-  } else if (typeof output === "string") {
-    Output = <CodeBlock code={output} language="json" />;
-  }
+    if (!(output || errorText)) {
+      return null;
+    }
 
-  return (
-    <div className={cn("space-y-2 p-4", className)} {...props}>
-      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        {errorText ? "Error" : "Result"}
-      </h4>
-      <div
-        className={cn(
-          "overflow-x-auto rounded-md text-xs [&_table]:w-full",
-          errorText
-            ? "bg-destructive/10 text-destructive"
-            : "bg-muted/50 text-foreground"
-        )}
-      >
-        {errorText && <div>{errorText}</div>}
-        {Output}
+    // Convert output to string for processing
+    const outputString = useMemo(() => {
+      if (errorText) {
+        return errorText;
+      }
+      if (typeof output === "string") {
+        return output;
+      }
+      if (typeof output === "object" && !isValidElement(output)) {
+        return JSON.stringify(output, null, 2);
+      }
+      return String(output);
+    }, [output, errorText]);
+
+    const isLarge = outputString.length > TRUNCATE_THRESHOLD;
+    const shouldTruncate = isLarge && !isExpanded;
+    const displayedOutput = shouldTruncate
+      ? outputString.slice(0, INITIAL_DISPLAY_LENGTH)
+      : outputString;
+
+    let Output: ReactNode;
+
+    if (typeof output === "object" && !isValidElement(output)) {
+      Output = (
+        <CodeBlock
+          code={displayedOutput}
+          language="json"
+          lazy={true}
+          isVisible={isVisible}
+        />
+      );
+    } else if (typeof output === "string") {
+      Output = (
+        <CodeBlock
+          code={displayedOutput}
+          language="json"
+          lazy={true}
+          isVisible={isVisible}
+        />
+      );
+    } else {
+      Output = <div>{output as ReactNode}</div>;
+    }
+
+    return (
+      <div className={cn("space-y-2 p-4", className)} {...props}>
+        <div className="flex items-center justify-between">
+          <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+            {errorText ? "Error" : "Result"}
+          </h4>
+          {isLarge && (
+            <div className="text-xs text-muted-foreground">
+              {outputString.length.toLocaleString()} characters
+            </div>
+          )}
+        </div>
+        <div
+          className={cn(
+            "overflow-x-auto rounded-md text-xs [&_table]:w-full",
+            errorText
+              ? "bg-destructive/10 text-destructive"
+              : "bg-muted/50 text-foreground"
+          )}
+        >
+          {errorText && !isLarge && <div className="p-2">{errorText}</div>}
+          {errorText && isLarge && (
+            <div className="p-2">
+              {shouldTruncate ? displayedOutput : errorText}
+            </div>
+          )}
+          {!errorText && Output}
+          {isLarge && (
+            <div className="flex items-center justify-center p-2 border-t">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="text-xs"
+              >
+                {isExpanded ? (
+                  <>
+                    Show Less
+                    <ChevronDown className="ml-1 size-3 rotate-180" />
+                  </>
+                ) : (
+                  <>
+                    Show More (
+                    {(
+                      outputString.length - INITIAL_DISPLAY_LENGTH
+                    ).toLocaleString()}{" "}
+                    more characters)
+                    <ChevronDown className="ml-1 size-3" />
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  }
+);
+
+ToolOutput.displayName = "ToolOutput";
