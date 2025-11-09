@@ -5,7 +5,6 @@ import { createGitHubApiProxyTool } from "@/tools/github-api";
 import { sandboxTools } from "@/tools/sandbox";
 import { NextRequest } from "next/server";
 import { getGitHubToken, getUserId } from "@/lib/auth";
-import { checkBotId } from "botid/server";
 import { checkRateLimit } from "@vercel/firewall";
 import { Octokit } from "@octokit/rest";
 
@@ -281,23 +280,6 @@ export const maxDuration = 800;
 
 export async function POST(req: NextRequest) {
   try {
-    // Verify request is not from a bot using BotID
-    const verification = await checkBotId();
-
-    if (verification.isBot) {
-      return new Response(
-        JSON.stringify({
-          error: "Bot detected",
-          message:
-            "Your request was blocked because it appears to be from a bot. If you believe this is an error, please contact support.",
-        }),
-        {
-          status: 403,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-
     // Check rate limiting based on authentication status
     const userId = await getUserId();
     const isAuthenticated = !!userId;
