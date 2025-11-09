@@ -70,9 +70,12 @@ const getStatusBadge = (status: ToolState) => {
   };
 
   return (
-    <Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
+    <Badge
+      className="gap-1 sm:gap-1.5 rounded-full text-[10px] sm:text-xs"
+      variant="secondary"
+    >
       {icons[status]}
-      {labels[status]}
+      <span className="hidden sm:inline">{labels[status]}</span>
     </Badge>
   );
 };
@@ -90,25 +93,25 @@ export const ToolHeader = ({
   return (
     <CollapsibleTrigger
       className={cn(
-        "sticky top-0 z-10 flex w-full items-end justify-between gap-4 rounded-t-md border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3",
+        "sticky top-0 z-10 flex w-full items-center justify-between gap-2 sm:gap-4 rounded-t-md border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-2 sm:p-3",
         className
       )}
       {...props}
     >
-      <div className="flex items-center gap-2">
-        <WrenchIcon className="size-4 text-muted-foreground" />
+      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+        <WrenchIcon className="size-3.5 sm:size-4 text-muted-foreground shrink-0" />
         {reason ? (
-          <div className="rounded-md bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+          <div className="rounded-md bg-muted px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs text-muted-foreground truncate max-w-[120px] sm:max-w-none">
             {reason}
           </div>
-        ) : (
-          <div />
-        )}
+        ) : null}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         {getStatusBadge(state)}
-        <span className="font-medium text-sm">{toolName}</span>
-        <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        <span className="font-medium text-xs sm:text-sm truncate max-w-[100px] sm:max-w-none">
+          {toolName}
+        </span>
+        <ChevronDownIcon className="size-3.5 sm:size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180 shrink-0" />
       </div>
     </CollapsibleTrigger>
   );
@@ -119,7 +122,7 @@ export type ToolContentProps = ComponentProps<typeof CollapsibleContent>;
 export const ToolContent = ({ className, ...props }: ToolContentProps) => (
   <CollapsibleContent
     className={cn(
-      "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-popover-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in max-h-[500px] overflow-y-auto",
+      "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-popover-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in max-h-[60vh] sm:max-h-[500px] overflow-y-auto",
       className
     )}
     {...props}
