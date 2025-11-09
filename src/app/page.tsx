@@ -36,7 +36,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo, useCallback, memo } from "react";
 import { useChat } from "@ai-sdk/react";
 import type { GatewayModelId } from "@ai-sdk/gateway";
 import { useStickToBottom } from "use-stick-to-bottom";
@@ -65,7 +65,7 @@ import {
   ToolInput,
   ToolOutput,
 } from "@/components/ai-elements/tool";
-import type { AppToolUIPart } from "@/types/chat";
+import type { AppToolUIPart, AppUIMessage } from "@/types/chat";
 
 const models = [
   {
@@ -95,6 +95,164 @@ const promptSuggestions = [
   "How does dub.co implement OAuth?",
   "Explain how `createOpencodeClient` in OpenCode works to send commands to a remote client",
 ];
+
+// Memoized message item component to prevent unnecessary re-renders
+const MessageItem = memo(
+  ({
+    message,
+    isLastMessage,
+    isStreaming,
+    onRegenerate,
+  }: {
+    message: AppUIMessage;
+    isLastMessage: boolean;
+    isStreaming: boolean;
+    onRegenerate: () => void;
+  }) => {
+    // Pre-compute filtered parts once per message
+    const sourceParts = useMemo(
+      () => message.parts.filter((part) => part.type === "source-url"),
+      [message.parts]
+    );
+
+    const handleCopyText = useCallback((text: string) => {
+      navigator.clipboard.writeText(text);
+    }, []);
+
+    return (
+      <div className="[content-visibility:auto]">
+        {message.role === "assistant" && sourceParts.length > 0 && (
+          <Sources>
+            <SourcesTrigger count={sourceParts.length} />
+            {sourceParts.map((part, i) => (
+              <SourcesContent key={`${message.id}-${i}`}>
+                <Source
+                  key={`${message.id}-${i}`}
+                  href={part.url}
+                  title={part.url}
+                />
+              </SourcesContent>
+            ))}
+          </Sources>
+        )}
+        {message.parts.map((part, i) => {
+          switch (part.type) {
+            case "text":
+              return (
+                <div
+                  key={`${message.id}-${i}`}
+                  className="group/message flex w-full flex-col"
+                >
+                  <Message from={message.role}>
+                    <MessageContent>
+                      <MessageResponse>{part.text}</MessageResponse>
+                    </MessageContent>
+                  </Message>
+                  {message.role === "assistant" && (
+                    <MessageActions className="mt-2 opacity-0 transition-opacity group-hover/message:opacity-100">
+                      {isLastMessage && (
+                        <MessageAction onClick={onRegenerate} label="Retry">
+                          <RefreshCcwIcon className="size-3" />
+                        </MessageAction>
+                      )}
+                      <MessageAction
+                        onClick={() => handleCopyText(part.text)}
+                        label="Copy"
+                      >
+                        <CopyIcon className="size-3" />
+                      </MessageAction>
+                    </MessageActions>
+                  )}
+                  {message.role === "user" && (
+                    <MessageActions className="mt-2 ml-auto justify-end opacity-0 transition-opacity group-hover/message:opacity-100">
+                      <MessageAction
+                        onClick={() => handleCopyText(part.text)}
+                        label="Copy"
+                      >
+                        <CopyIcon className="size-3" />
+                      </MessageAction>
+                    </MessageActions>
+                  )}
+                </div>
+              );
+            case "reasoning":
+              return (
+                <Reasoning
+                  key={`${message.id}-${i}`}
+                  className="w-full"
+                  isStreaming={
+                    isStreaming &&
+                    i === message.parts.length - 1 &&
+                    isLastMessage
+                  }
+                >
+                  <ReasoningTrigger />
+                  <ReasoningContent>{part.text}</ReasoningContent>
+                </Reasoning>
+              );
+            default:
+              // Handle tool parts
+              if (part.type.startsWith("tool-")) {
+                const toolPart = part as AppToolUIPart;
+                // Extract reason from input if present
+                const inputObj =
+                  typeof toolPart.input === "object" && toolPart.input !== null
+                    ? (toolPart.input as Record<string, unknown>)
+                    : {};
+                const reason =
+                  typeof inputObj.reason === "string"
+                    ? inputObj.reason
+                    : undefined;
+
+                return (
+                  <Tool
+                    key={`${message.id}-${i}`}
+                    defaultOpen={false}
+                    className="w-full"
+                  >
+                    <ToolHeader
+                      type={toolPart.type}
+                      state={toolPart.state}
+                      reason={reason}
+                    />
+                    <ToolContent>
+                      {toolPart.input !== undefined && (
+                        <ToolInput input={toolPart.input} />
+                      )}
+                      {(toolPart.output !== undefined ||
+                        toolPart.errorText) && (
+                        <ToolOutput
+                          output={toolPart.output}
+                          errorText={toolPart.errorText}
+                        />
+                      )}
+                    </ToolContent>
+                  </Tool>
+                );
+              }
+              return null;
+          }
+        })}
+      </div>
+    );
+  },
+  (prevProps, nextProps) => {
+    // Custom comparison function for better memoization
+    // Only re-render if message ID changed, parts length changed, or streaming status changed
+    if (prevProps.message.id !== nextProps.message.id) return false;
+    if (prevProps.message.parts.length !== nextProps.message.parts.length)
+      return false;
+    if (prevProps.isLastMessage !== nextProps.isLastMessage) return false;
+    if (prevProps.isStreaming !== nextProps.isStreaming) return false;
+
+    // For streaming messages, always re-render to show updates
+    if (nextProps.isStreaming && nextProps.isLastMessage) return false;
+
+    return true;
+  }
+);
+
+MessageItem.displayName = "MessageItem";
 
 const ChatBotDemo = () => {
   const [input, setInput] = useState("");
@@ -220,9 +378,19 @@ const ChatBotDemo = () => {
     }
   };
 
-  const handleSuggestionClick = (suggestion: string) => {
-    handleSubmit({ text: suggestion });
-  };
+  const handleSuggestionClick = useCallback(
+    (suggestion: string) => {
+      handleSubmit({ text: suggestion });
+    },
+    [handleSubmit]
+  );
+
+  const handleRegenerate = useCallback(() => {
+    regenerate();
+  }, [regenerate]);
+
+  // Memoize the last message ID to avoid recalculating
+  const lastMessageId = useMemo(() => messages.at(-1)?.id, [messages]);
 
   // Helper function to render error message with Twitter link
   const renderRateLimitError = (error: string) => {
@@ -366,140 +534,13 @@ const ChatBotDemo = () => {
             <Conversation instance={stickToBottomInstance}>
               <ConversationContent>
                 {messages.map((message) => (
-                  <div key={message.id} className="[content-visibility:auto]">
-                    {message.role === "assistant" &&
-                      message.parts.filter((part) => part.type === "source-url")
-                        .length > 0 && (
-                        <Sources>
-                          <SourcesTrigger
-                            count={
-                              message.parts.filter(
-                                (part) => part.type === "source-url"
-                              ).length
-                            }
-                          />
-                          {message.parts
-                            .filter((part) => part.type === "source-url")
-                            .map((part, i) => (
-                              <SourcesContent key={`${message.id}-${i}`}>
-                                <Source
-                                  key={`${message.id}-${i}`}
-                                  href={part.url}
-                                  title={part.url}
-                                />
-                              </SourcesContent>
-                            ))}
-                        </Sources>
-                      )}
-                    {message.parts.map((part, i) => {
-                      switch (part.type) {
-                        case "text":
-                          const isLastMessage =
-                            message.id === messages.at(-1)?.id;
-                          return (
-                            <div
-                              key={`${message.id}-${i}`}
-                              className="group/message flex w-full flex-col"
-                            >
-                              <Message from={message.role}>
-                                <MessageContent>
-                                  <MessageResponse>{part.text}</MessageResponse>
-                                </MessageContent>
-                              </Message>
-                              {message.role === "assistant" && (
-                                <MessageActions className="mt-2 opacity-0 transition-opacity group-hover/message:opacity-100">
-                                  {isLastMessage && (
-                                    <MessageAction
-                                      onClick={() => regenerate()}
-                                      label="Retry"
-                                    >
-                                      <RefreshCcwIcon className="size-3" />
-                                    </MessageAction>
-                                  )}
-                                  <MessageAction
-                                    onClick={() =>
-                                      navigator.clipboard.writeText(part.text)
-                                    }
-                                    label="Copy"
-                                  >
-                                    <CopyIcon className="size-3" />
-                                  </MessageAction>
-                                </MessageActions>
-                              )}
-                              {message.role === "user" && (
-                                <MessageActions className="mt-2 ml-auto justify-end opacity-0 transition-opacity group-hover/message:opacity-100">
-                                  <MessageAction
-                                    onClick={() =>
-                                      navigator.clipboard.writeText(part.text)
-                                    }
-                                    label="Copy"
-                                  >
-                                    <CopyIcon className="size-3" />
-                                  </MessageAction>
-                                </MessageActions>
-                              )}
-                            </div>
-                          );
-                        case "reasoning":
-                          return (
-                            <Reasoning
-                              key={`${message.id}-${i}`}
-                              className="w-full"
-                              isStreaming={
-                                status === "streaming" &&
-                                i === message.parts.length - 1 &&
-                                message.id === messages.at(-1)?.id
-                              }
-                            >
-                              <ReasoningTrigger />
-                              <ReasoningContent>{part.text}</ReasoningContent>
-                            </Reasoning>
-                          );
-                        default:
-                          // Handle tool parts
-                          if (part.type.startsWith("tool-")) {
-                            const toolPart = part as AppToolUIPart;
-                            // Extract reason from input if present
-                            const inputObj =
-                              typeof toolPart.input === "object" &&
-                              toolPart.input !== null
-                                ? (toolPart.input as Record<string, unknown>)
-                                : {};
-                            const reason =
-                              typeof inputObj.reason === "string"
-                                ? inputObj.reason
-                                : undefined;
-
-                            return (
-                              <Tool
-                                key={`${message.id}-${i}`}
-                                defaultOpen={false}
-                                className="w-full"
-                              >
-                                <ToolHeader
-                                  type={toolPart.type}
-                                  state={toolPart.state}
-                                  reason={reason}
-                                />
-                                <ToolContent>
-                                  {toolPart.input !== undefined && (
-                                    <ToolInput input={toolPart.input} />
-                                  )}
-                                  {(toolPart.output !== undefined ||
-                                    toolPart.errorText) && (
-                                    <ToolOutput
-                                      output={toolPart.output}
-                                      errorText={toolPart.errorText}
-                                    />
-                                  )}
-                                </ToolContent>
-                              </Tool>
-                            );
-                          }
-                          return null;
-                      }
-                    })}
-                  </div>
+                  <MessageItem
+                    key={message.id}
+                    message={message as AppUIMessage}
+                    isLastMessage={message.id === lastMessageId}
+                    isStreaming={status === "streaming"}
+                    onRegenerate={handleRegenerate}
+                  />
                 ))}
               </ConversationContent>
               <ConversationScrollButton />
