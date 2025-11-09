@@ -7,11 +7,42 @@ import { NextRequest } from "next/server";
 import { getGitHubToken, getUserId } from "@/lib/auth";
 import { checkBotId } from "botid/server";
 import { checkRateLimit } from "@vercel/firewall";
+import { Octokit } from "@octokit/rest";
 
-function buildSystemPrompt(isAuthenticated: boolean): string {
+function buildSystemPrompt(
+  isAuthenticated: boolean,
+  userInfo?: {
+    login: string;
+    name?: string | null;
+    email?: string | null;
+    bio?: string | null;
+    company?: string | null;
+    location?: string | null;
+    public_repos?: number;
+    followers?: number;
+    following?: number;
+  }
+): string {
   const authStatus = isAuthenticated
     ? "✅ The user is currently signed in with GitHub. All authenticated tools are available."
     : "❌ The user is NOT signed in with GitHub. Some tools require authentication.";
+
+  const userInfoSection = userInfo
+    ? `
+CURRENT USER INFORMATION:
+- Username: ${userInfo.login}
+${userInfo.name ? `- Name: ${userInfo.name}` : ""}
+${userInfo.email ? `- Email: ${userInfo.email}` : ""}
+${userInfo.bio ? `- Bio: ${userInfo.bio}` : ""}
+${userInfo.company ? `- Company: ${userInfo.company}` : ""}
+${userInfo.location ? `- Location: ${userInfo.location}` : ""}
+${userInfo.public_repos !== undefined ? `- Public Repositories: ${userInfo.public_repos}` : ""}
+${userInfo.followers !== undefined ? `- Followers: ${userInfo.followers}` : ""}
+${userInfo.following !== undefined ? `- Following: ${userInfo.following}` : ""}
+
+When the user asks about "my" repositories, PRs, issues, or other GitHub activity, they are referring to the GitHub user "${userInfo.login}".
+`
+    : "";
 
   const toolRequirements = `
 AVAILABLE TOOLS AND AUTHENTICATION REQUIREMENTS:
@@ -240,6 +271,7 @@ When encountering errors or failures, DO NOT give up immediately. Be persistent 
 CRITICAL: Always investigate the root cause of errors by reading relevant configuration files (package.json, package-lock.json, etc.) before concluding that something is impossible. Try at least 2-3 alternative approaches before giving up.
 
 ${toolRequirements}
+${userInfoSection}
 
 Always be thorough and search systematically. Don't give up after one or two searches - explore the repository structure, codebase, and issues.`;
 }
@@ -312,6 +344,42 @@ export async function POST(req: NextRequest) {
 
     const githubToken = await getGitHubToken();
 
+    // Fetch user info if authenticated
+    let userInfo:
+      | {
+          login: string;
+          name?: string | null;
+          email?: string | null;
+          bio?: string | null;
+          company?: string | null;
+          location?: string | null;
+          public_repos?: number;
+          followers?: number;
+          following?: number;
+        }
+      | undefined = undefined;
+
+    if (isAuthenticated && githubToken) {
+      try {
+        const octokit = new Octokit({ auth: githubToken });
+        const response = await octokit.rest.users.getAuthenticated();
+        userInfo = {
+          login: response.data.login,
+          name: response.data.name,
+          email: response.data.email,
+          bio: response.data.bio,
+          company: response.data.company,
+          location: response.data.location,
+          public_repos: response.data.public_repos,
+          followers: response.data.followers,
+          following: response.data.following,
+        };
+      } catch (error) {
+        // Log error but don't fail the request - user info is optional
+        console.error("Failed to fetch GitHub user info:", error);
+      }
+    }
+
     // Create GitHub API proxy tool with user's token
     const githubApiProxyTool = createGitHubApiProxyTool(githubToken);
 
@@ -319,7 +387,7 @@ export async function POST(req: NextRequest) {
 
     const result = streamText({
       model: gateway("openai/gpt-5-mini"),
-      system: buildSystemPrompt(isAuthenticated),
+      system: buildSystemPrompt(isAuthenticated, userInfo),
       messages: convertToModelMessages(messages),
       tools: {
         githubApi: githubApiProxyTool,
