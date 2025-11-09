@@ -35,16 +35,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import type { GatewayModelId } from "@ai-sdk/gateway";
 import { useStickToBottom } from "use-stick-to-bottom";
+import { authClient } from "@/lib/auth-client";
 import {
   MessageAction,
   MessageActions,
   MessageResponse,
 } from "@/components/ai-elements/message";
-import { CopyIcon, RefreshCcwIcon } from "lucide-react";
+import { CopyIcon, RefreshCcwIcon, AlertCircleIcon } from "lucide-react";
 import {
   Source,
   Sources,
@@ -98,7 +100,70 @@ const ChatBotDemo = () => {
   const [input, setInput] = useState("");
   const [model, setModel] = useState<GatewayModelId>("openai/gpt-5-mini");
   const [webSearch, setWebSearch] = useState(false);
-  const { messages, sendMessage, status, regenerate, stop } = useChat();
+  const [rateLimitError, setRateLimitError] = useState<string | null>(null);
+  const { data: session } = authClient.useSession();
+  const isAuthenticated = !!session;
+  const { messages, sendMessage, status, regenerate, stop } = useChat({
+    onError: async (error) => {
+      // Check if it's a 429 rate limit error
+      const errorMessage = error.message || "";
+      if (
+        errorMessage.includes("429") ||
+        errorMessage.toLowerCase().includes("rate limit")
+      ) {
+        // Try to extract the error message from the response
+        try {
+          // The error might have a cause with response data
+          if (error.cause && typeof error.cause === "object") {
+            // Check if there's a response object
+            if ("response" in error.cause) {
+              const response = error.cause.response as Response | undefined;
+              if (response && response.status === 429) {
+                try {
+                  const data = await response.json();
+                  if (data.message === "You have been rate limited") {
+                    // Format the error message on the client
+                    const limitText = isAuthenticated
+                      ? "20 messages per hour for signed in users"
+                      : "10 messages per hour for signed out users, 20 for signed in";
+                    setRateLimitError(
+                      `You have been rate limited. The limit is ${limitText}. Tweet at rhys if you have a legitimate use case and need higher limits.`
+                    );
+                    return;
+                  }
+                } catch {
+                  // Response might not be JSON, fall through
+                }
+              }
+            }
+            // Check if message is directly in cause
+            if (
+              "message" in error.cause &&
+              typeof error.cause.message === "string"
+            ) {
+              if (error.cause.message === "You have been rate limited") {
+                const limitText = isAuthenticated
+                  ? "20 messages per hour for signed in users"
+                  : "10 messages per hour for signed out users, 20 for signed in";
+                setRateLimitError(
+                  `You have been rate limited. The limit is ${limitText}. Tweet at rhys if you have a legitimate use case and need higher limits.`
+                );
+                return;
+              }
+            }
+          }
+        } catch {
+          // Fall through to default message
+        }
+        const limitText = isAuthenticated
+          ? "20 messages per hour for signed in users"
+          : "10 messages per hour for signed out users, 20 for signed in";
+        setRateLimitError(
+          `You have been rate limited. The limit is ${limitText}. Tweet at rhys if you have a legitimate use case and need higher limits.`
+        );
+      }
+    },
+  });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const stickToBottomInstance = useStickToBottom({
     initial: "smooth",
@@ -113,7 +178,7 @@ const ChatBotDemo = () => {
     }
   };
 
-  const handleSubmit = (message: PromptInputMessage) => {
+  const handleSubmit = async (message: PromptInputMessage) => {
     const hasText = Boolean(message.text);
     const hasAttachments = Boolean(message.files?.length);
 
@@ -121,23 +186,64 @@ const ChatBotDemo = () => {
       return;
     }
 
-    sendMessage(
-      {
-        text: message.text || "Sent with attachments",
-        files: message.files,
-      },
-      {
-        body: {
-          model: model,
-          webSearch: webSearch,
+    // Clear any previous rate limit errors
+    setRateLimitError(null);
+
+    // Wrap sendMessage to catch 429 errors
+    try {
+      await sendMessage(
+        {
+          text: message.text || "Sent with attachments",
+          files: message.files,
         },
+        {
+          body: {
+            model: model,
+            webSearch: webSearch,
+          },
+        }
+      );
+      setInput("");
+    } catch (error) {
+      // Fallback error handling - onError should handle it, but this is a safety net
+      if (error instanceof Error && error.message.includes("429")) {
+        // Error already handled by onError, but ensure we have a message
+        if (!rateLimitError) {
+          const limitText = isAuthenticated
+            ? "20 messages per hour for signed in users"
+            : "10 messages per hour for signed out users, 20 for signed in";
+          setRateLimitError(
+            `You have been rate limited. The limit is ${limitText}. Tweet at rhys if you have a legitimate use case and need higher limits.`
+          );
+        }
       }
-    );
-    setInput("");
+    }
   };
 
   const handleSuggestionClick = (suggestion: string) => {
     handleSubmit({ text: suggestion });
+  };
+
+  // Helper function to render error message with Twitter link
+  const renderRateLimitError = (error: string) => {
+    const parts = error.split("rhys");
+    if (parts.length === 2) {
+      return (
+        <>
+          {parts[0]}
+          <a
+            href="https://twitter.com/rhyssullivan"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 underline"
+          >
+            rhys
+          </a>
+          {parts[1]}
+        </>
+      );
+    }
+    return error;
   };
 
   return (
@@ -180,6 +286,15 @@ const ChatBotDemo = () => {
 
           <div className="grid shrink-0 gap-4 pt-4 pb-2">
             <div className="w-full px-4 pb-4 max-w-4xl mx-auto">
+              {rateLimitError && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircleIcon />
+                  <AlertTitle>Rate Limited</AlertTitle>
+                  <AlertDescription className="!inline-block">
+                    {renderRateLimitError(rateLimitError)}
+                  </AlertDescription>
+                </Alert>
+              )}
               <div className="mb-4">
                 <Suggestions>
                   {promptSuggestions.map((suggestion, index) => (
@@ -393,6 +508,15 @@ const ChatBotDemo = () => {
 
           <div className="grid shrink-0 gap-4 pt-4 pb-2">
             <div className="w-full px-4 pb-4 max-w-4xl mx-auto">
+              {rateLimitError && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircleIcon />
+                  <AlertTitle>Rate Limited</AlertTitle>
+                  <AlertDescription className="!inline-block">
+                    {renderRateLimitError(rateLimitError)}
+                  </AlertDescription>
+                </Alert>
+              )}
               <PromptInput onSubmit={handleSubmit} globalDrop multiple>
                 <PromptInputHeader>
                   <PromptInputAttachments>

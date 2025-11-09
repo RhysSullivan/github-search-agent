@@ -275,92 +275,16 @@ export async function POST(req: NextRequest) {
       ...(isAuthenticated && userId ? { rateLimitKey: userId } : {}),
     });
 
-    if (rateLimited) {
-      return new Response(
-        JSON.stringify({
-          error: "Rate limit exceeded",
-          message: isAuthenticated
-            ? "You have exceeded the rate limit of 50 requests per hour. Please try again later."
-            : "You have exceeded the rate limit of 10 requests per hour. Please sign in for higher limits or try again later.",
-        }),
-        {
-          status: 429,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    const {
-      messages,
-      model,
-      webSearch,
-    }: {
-      messages: AppUIMessage[];
-      model: string;
-      webSearch: boolean;
-    } = await req.json();
-
-    if (!messages || !Array.isArray(messages)) {
-      return new Response(
-        JSON.stringify({ error: "Messages are required and must be an array" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    const githubToken = await getGitHubToken();
-
-    // Create GitHub API proxy tool with user's token
-    const githubApiProxyTool = createGitHubApiProxyTool(githubToken);
-
-    // isAuthenticated is already determined above for rate limiting
-
-    const result = streamText({
-      model: gateway("openai/gpt-5-mini"),
-      system: buildSystemPrompt(isAuthenticated),
-      messages: convertToModelMessages(messages),
-      tools: {
-        githubApi: githubApiProxyTool,
-        runSandboxCommand: sandboxTools.runCommand,
-      },
-      onError: (error) => {
-        // Safely log error - handle different error structures
-        if (error instanceof Error) {
-          console.error("Stream error:", error.message, error.stack);
-        } else if (typeof error === "object" && error !== null) {
-          // Handle error objects that might have nested error properties
-          const errorObj = error as Record<string, unknown>;
-          if (errorObj.error instanceof Error) {
-            console.error(
-              "Stream error:",
-              errorObj.error.message,
-              errorObj.error.stack
-            );
-          } else {
-            console.error("Stream error:", JSON.stringify(error, null, 2));
-          }
-        } else {
-          console.error("Stream error:", String(error));
-        }
-      },
-      providerOptions: {
-        openai: {
-          // https://platform.openai.com/docs/api-reference/responses/create#responses-create-reasoning
-          reasoningEffort: "low", // minimal (new to this model), low, medium, high
-          reasoningSummary: "auto", // auto, concise, detailed
-        },
-      },
-      stopWhen: stepCountIs(150),
-    });
-
-    // send sources and reasoning back to the client
-    return result.toUIMessageStreamResponse({
-      sendSources: true,
-
-      sendReasoning: true,
-    });
+    return new Response(
+      JSON.stringify({
+        error: "Rate limit exceeded",
+        message: "You have been rate limited",
+      }),
+      {
+        status: 429,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Internal server error";
