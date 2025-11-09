@@ -70,8 +70,16 @@ import type { AppToolUIPart, AppUIMessage } from "@/types/chat";
 
 const models = [
   {
+    name: "GPT 5 Nano",
+    value: "openai/gpt-5-nano",
+  },
+  {
     name: "GPT 5 Mini",
     value: "openai/gpt-5-mini",
+  },
+  {
+    name: "GPT 5",
+    value: "openai/gpt-5",
   },
 ];
 
@@ -306,9 +314,7 @@ const ChatBotDemo = () => {
         } catch {
           // Fall through to default message
         }
-        setBotError(
-          "Your request was blocked because it appears to be from a bot. If you believe this is an error, please contact support."
-        );
+        setBotError(error.message);
         return;
       }
 
@@ -448,6 +454,9 @@ const ChatBotDemo = () => {
     setBotError(null);
     setGeneralError(null);
 
+    // Clear input immediately for better UX
+    setInput("");
+
     // Wrap sendMessage to catch 429 errors
     try {
       await sendMessage(
@@ -462,7 +471,6 @@ const ChatBotDemo = () => {
           },
         }
       );
-      setInput("");
     } catch (error) {
       // Fallback error handling - onError should handle it, but this is a safety net
       if (error instanceof Error) {
@@ -482,9 +490,7 @@ const ChatBotDemo = () => {
         ) {
           // Error already handled by onError, but ensure we have a message
           if (!botError) {
-            setBotError(
-              "Your request was blocked because it appears to be from a bot. If you believe this is an error, please contact support."
-            );
+            setBotError(error.message);
           }
         } else {
           // Handle any other errors

@@ -16,14 +16,22 @@ export function createGitHubApiProxyTool(githubToken: string | null) {
     
     Many endpoints work without authentication (public repositories, search endpoints, etc.), but authenticated requests have higher rate limits. Some endpoints require authentication (e.g., /user, /user/repos).
     
+    CRITICAL: When exploring unfamiliar repositories or libraries, ALWAYS read documentation files first:
+    - Read README.md: endpoint="/repos/{owner}/{repo}/contents/README.md" - decode base64 content to read
+    - List docs directory: endpoint="/repos/{owner}/{repo}/contents/docs" to find documentation files
+    - Read documentation files: endpoint="/repos/{owner}/{repo}/contents/{path}" for any .md files
+    - Documentation often explains features, APIs, and usage better than code search alone
+    
     Examples:
     - Get authenticated user (requires auth): endpoint="/user"
     - Get repository (public, no auth needed): endpoint="/repos/{owner}/{repo}", params={owner: "octocat", repo: "Hello-World"}
+    - Read README.md (public repos, no auth needed): endpoint="/repos/{owner}/{repo}/contents/README.md", params={owner: "octocat", repo: "Hello-World"} - decode base64 content
     - Get pull requests (public repos, no auth needed): endpoint="/repos/{owner}/{repo}/pulls", params={owner: "octocat", repo: "Hello-World", state: "open"}
     - Get issues (public repos, no auth needed): endpoint="/repos/{owner}/{repo}/issues", params={owner: "octocat", repo: "Hello-World"}
     - Get repository contents (public repos, no auth needed): endpoint="/repos/{owner}/{repo}/contents/{path}", params={owner: "octocat", repo: "Hello-World", path: "README.md"}
     - Search repositories (public, no auth needed): endpoint="/search/repositories", params={q: "language:python"}
     - Search code (public, no auth needed): endpoint="/search/code", params={q: "function-name repo:owner/repo"}
+    - Search markdown files: endpoint="/search/code", params={q: "extension:md repo:owner/repo search-terms"}
     
     The endpoint should be a GitHub REST API path (without the base URL). Path parameters should be included in the endpoint string using {param} syntax, and query parameters should be passed in the params object.
     

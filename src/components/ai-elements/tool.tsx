@@ -93,7 +93,7 @@ export const ToolHeader = ({
   return (
     <CollapsibleTrigger
       className={cn(
-        "sticky top-0 z-10 flex w-full items-center justify-between gap-2 sm:gap-4 rounded-t-md border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-2 sm:p-3",
+        "sticky top-0 z-10 flex w-full items-center justify-between gap-2 sm:gap-4 rounded-t-md border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-2 sm:p-3 data-[state=closed]:bg-transparent data-[state=closed]:backdrop-blur-none data-[state=closed]:border-b-0",
         className
       )}
       {...props}

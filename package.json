@@ -58,6 +58,7 @@
     "convex": "^1.28.2",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
+    "exa-js": "^2.0.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.553.0",
     "motion": "^12.23.24",
