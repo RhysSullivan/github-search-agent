@@ -275,16 +275,18 @@ export async function POST(req: NextRequest) {
       ...(isAuthenticated && userId ? { rateLimitKey: userId } : {}),
     });
 
-    return new Response(
-      JSON.stringify({
-        error: "Rate limit exceeded",
-        message: "You have been rate limited",
-      }),
-      {
-        status: 429,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    if (rateLimited) {
+      return new Response(
+        JSON.stringify({
+          error: "Rate limit exceeded",
+          message: "You have been rate limited",
+        }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Internal server error";
