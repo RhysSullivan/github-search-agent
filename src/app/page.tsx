@@ -253,29 +253,29 @@ const ChatBotDemo = () => {
     >
       {messages.length === 0 ? (
         <>
-          <div className="max-w-4xl mx-auto w-full flex flex-col flex-1 px-6 pt-12">
+          <div className="max-w-4xl mx-auto w-full flex flex-col flex-1 px-4 sm:px-6 pt-12">
             <div className="text-center mb-12">
-              <h1 className="text-4xl font-semibold mb-2">
+              <h1 className="text-2xl sm:text-4xl font-semibold mb-2">
                 Welcome to Better Pilot
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-sm sm:text-base text-muted-foreground">
                 Your AI-powered GitHub search assistant
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mb-12 max-w-md mx-auto">
+            <div className="hidden sm:grid grid-cols-2 gap-2 sm:gap-3 mb-8 sm:mb-12 max-w-md mx-auto">
               {features.map((feature, index) => (
                 <Card
                   key={index}
-                  className="flex flex-col gap-0 py-3 px-4 border-border/50"
+                  className="flex flex-col gap-0 py-2 px-3 sm:py-3 sm:px-4 border-border/50"
                 >
-                  <CardHeader className="p-0 pb-1.5">
-                    <CardTitle className="text-sm font-medium leading-tight">
+                  <CardHeader className="p-0 pb-1 sm:pb-1.5">
+                    <CardTitle className="text-xs sm:text-sm font-medium leading-tight">
                       {feature.title}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-0 flex items-start">
-                    <CardDescription className="text-xs leading-relaxed">
+                    <CardDescription className="text-[10px] sm:text-xs leading-relaxed">
                       {feature.description}
                     </CardDescription>
                   </CardContent>
@@ -285,17 +285,17 @@ const ChatBotDemo = () => {
           </div>
 
           <div className="grid shrink-0 gap-4 pt-4 pb-2">
-            <div className="w-full px-4 pb-4 max-w-4xl mx-auto">
+            <div className="w-full px-2 sm:px-4 pb-4 max-w-4xl mx-auto">
               {rateLimitError && (
                 <Alert variant="destructive" className="mb-4">
                   <AlertCircleIcon />
                   <AlertTitle>Rate Limited</AlertTitle>
-                  <AlertDescription className="!inline-block">
+                  <AlertDescription className="inline-block!">
                     {renderRateLimitError(rateLimitError)}
                   </AlertDescription>
                 </Alert>
               )}
-              <div className="mb-4">
+              <div className="mb-4 min-w-0">
                 <Suggestions>
                   {promptSuggestions.map((suggestion, index) => (
                     <Suggestion
@@ -362,7 +362,7 @@ const ChatBotDemo = () => {
         </>
       ) : (
         <>
-          <div className="max-w-4xl mx-auto w-full flex flex-col flex-1 px-6 pt-6">
+          <div className="max-w-4xl mx-auto w-full flex flex-col flex-1 px-4 sm:px-6 pt-6">
             <Conversation instance={stickToBottomInstance}>
               <ConversationContent>
                 {messages.map((message) => (
@@ -507,12 +507,12 @@ const ChatBotDemo = () => {
           </div>
 
           <div className="grid shrink-0 gap-4 pt-4 pb-2">
-            <div className="w-full px-4 pb-4 max-w-4xl mx-auto">
+            <div className="w-full px-2 sm:px-4 pb-4 max-w-4xl mx-auto">
               {rateLimitError && (
                 <Alert variant="destructive" className="mb-4">
                   <AlertCircleIcon />
                   <AlertTitle>Rate Limited</AlertTitle>
-                  <AlertDescription className="!inline-block">
+                  <AlertDescription className="inline-block!">
                     {renderRateLimitError(rateLimitError)}
                   </AlertDescription>
                 </Alert>

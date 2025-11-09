@@ -27,12 +27,12 @@ export function Navbar() {
   if (isPending) {
     return (
       <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-14 items-center justify-end px-4 gap-2">
-          <Button variant="outline" size="sm" onClick={handleNewChat}>
+        <div className="flex h-14 items-center justify-end px-2 sm:px-4 gap-1 sm:gap-2">
+          <Button variant="outline" size="sm" onClick={handleNewChat} className="px-2 sm:px-3">
             <MessageSquarePlus className="h-4 w-4" />
-            <span>New Chat</span>
+            <span className="hidden sm:inline">New Chat</span>
           </Button>
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="outline" size="sm" asChild className="px-2 sm:px-3">
             <Link
               href="https://twitter.com/intent/tweet?screen_name=rhyssullivan&text=@rhyssullivan%20I%20have%20feedback%20about%20betterpilot%20"
               target="_blank"
@@ -40,10 +40,10 @@ export function Navbar() {
               className="flex items-center gap-2"
             >
               <MessageSquare className="h-4 w-4" />
-              <span>Feedback</span>
+              <span className="hidden sm:inline">Feedback</span>
             </Link>
           </Button>
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="outline" size="sm" asChild className="px-2 sm:px-3">
             <Link
               href="https://github.com/RhysSullivan/github-search-agent"
               target="_blank"
@@ -51,7 +51,7 @@ export function Navbar() {
               className="flex items-center gap-2"
             >
               <Github className="h-4 w-4" />
-              <span>Star on GitHub</span>
+              <span className="hidden sm:inline">Star on GitHub</span>
             </Link>
           </Button>
           <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
@@ -63,12 +63,12 @@ export function Navbar() {
   if (!session) {
     return (
       <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-14 items-center justify-end px-4 gap-2">
-          <Button variant="outline" size="sm" onClick={handleNewChat}>
+        <div className="flex h-14 items-center justify-end px-2 sm:px-4 gap-1 sm:gap-2">
+          <Button variant="outline" size="sm" onClick={handleNewChat} className="px-2 sm:px-3">
             <MessageSquarePlus className="h-4 w-4" />
-            <span>New Chat</span>
+            <span className="hidden sm:inline">New Chat</span>
           </Button>
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="outline" size="sm" asChild className="px-2 sm:px-3">
             <Link
               href="https://twitter.com/intent/tweet?screen_name=rhyssullivan&text=@rhyssullivan%20I%20have%20feedback%20about%20betterpilot%20"
               target="_blank"
@@ -76,10 +76,10 @@ export function Navbar() {
               className="flex items-center gap-2"
             >
               <MessageSquare className="h-4 w-4" />
-              <span>Feedback</span>
+              <span className="hidden sm:inline">Feedback</span>
             </Link>
           </Button>
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="outline" size="sm" asChild className="px-2 sm:px-3">
             <Link
               href="https://github.com/RhysSullivan/github-search-agent"
               target="_blank"
@@ -87,7 +87,7 @@ export function Navbar() {
               className="flex items-center gap-2"
             >
               <Github className="h-4 w-4" />
-              <span>Star on GitHub</span>
+              <span className="hidden sm:inline">Star on GitHub</span>
             </Link>
           </Button>
           <GitHubLoginButton />
@@ -112,12 +112,12 @@ export function Navbar() {
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-14 items-center justify-end px-4 gap-2">
-        <Button variant="outline" size="sm" onClick={handleNewChat}>
+      <div className="flex h-14 items-center justify-end px-2 sm:px-4 gap-1 sm:gap-2">
+        <Button variant="outline" size="sm" onClick={handleNewChat} className="px-2 sm:px-3">
           <MessageSquarePlus className="h-4 w-4" />
-          <span>New Chat</span>
+          <span className="hidden sm:inline">New Chat</span>
         </Button>
-        <Button variant="outline" size="sm" asChild>
+        <Button variant="outline" size="sm" asChild className="px-2 sm:px-3">
           <Link
             href="https://twitter.com/intent/tweet?text=@rhyssullivan%20I%20have%20feedback%20about%20betterpilot%20"
             target="_blank"
@@ -125,10 +125,10 @@ export function Navbar() {
             className="flex items-center gap-2"
           >
             <MessageSquare className="h-4 w-4" />
-            <span>Feedback</span>
+            <span className="hidden sm:inline">Feedback</span>
           </Link>
         </Button>
-        <Button variant="outline" size="sm" asChild>
+        <Button variant="outline" size="sm" asChild className="px-2 sm:px-3">
           <Link
             href="https://github.com/RhysSullivan/github-search-agent"
             target="_blank"
@@ -136,7 +136,7 @@ export function Navbar() {
             className="flex items-center gap-2"
           >
             <Github className="h-4 w-4" />
-            <span>Star on GitHub</span>
+            <span className="hidden sm:inline">Star on GitHub</span>
           </Link>
         </Button>
         <DropdownMenu>
