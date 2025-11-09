@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as getGitHubToken from "../getGitHubToken.js";
+import type * as getUserId from "../getUserId.js";
 import type * as http from "../http.js";
 import type * as sandbox from "../sandbox.js";
 
@@ -30,6 +31,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   getGitHubToken: typeof getGitHubToken;
+  getUserId: typeof getUserId;
   http: typeof http;
   sandbox: typeof sandbox;
 }>;

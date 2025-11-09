@@ -14,3 +14,14 @@ export async function getGitHubToken(): Promise<string | null> {
     return null;
   }
 }
+
+// Helper function to get user ID for rate limiting
+export async function getUserId(): Promise<string | null> {
+  try {
+    const token = await getToken();
+    return await fetchQuery(api.getUserId.getUserId, {}, { token });
+  } catch (error) {
+    console.error("Failed to get user ID:", error);
+    return null;
+  }
+}

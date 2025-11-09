@@ -4,8 +4,9 @@ import { gateway } from "@ai-sdk/gateway";
 import { createGitHubApiProxyTool } from "@/tools/github-api";
 import { sandboxTools } from "@/tools/sandbox";
 import { NextRequest } from "next/server";
-import { getGitHubToken } from "@/lib/auth";
+import { getGitHubToken, getUserId } from "@/lib/auth";
 import { checkBotId } from "botid/server";
+import { checkRateLimit } from "@vercel/firewall";
 
 function buildSystemPrompt(isAuthenticated: boolean): string {
   const authStatus = isAuthenticated
@@ -258,6 +259,37 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Check rate limiting based on authentication status
+    const userId = await getUserId();
+    const isAuthenticated = !!userId;
+
+    // Use different rate limit IDs for authenticated vs unauthenticated users
+    const rateLimitId = isAuthenticated
+      ? "chat-rate-limit-authenticated" // 50 requests/hour
+      : "chat-rate-limit-unauthenticated"; // 10 requests/hour
+
+    const { rateLimited, error } = await checkRateLimit(rateLimitId, {
+      request: req,
+      // For authenticated users, use user ID as the rate limit key
+      // For unauthenticated users, Vercel will use IP address automatically
+      ...(isAuthenticated && userId ? { rateLimitKey: userId } : {}),
+    });
+
+    if (rateLimited) {
+      return new Response(
+        JSON.stringify({
+          error: "Rate limit exceeded",
+          message: isAuthenticated
+            ? "You have exceeded the rate limit of 50 requests per hour. Please try again later."
+            : "You have exceeded the rate limit of 10 requests per hour. Please sign in for higher limits or try again later.",
+        }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const {
       messages,
       model,
@@ -283,8 +315,7 @@ export async function POST(req: NextRequest) {
     // Create GitHub API proxy tool with user's token
     const githubApiProxyTool = createGitHubApiProxyTool(githubToken);
 
-    // Determine if user is authenticated
-    const isAuthenticated = !!githubToken;
+    // isAuthenticated is already determined above for rate limiting
 
     const result = streamText({
       model: gateway("openai/gpt-5-mini"),
