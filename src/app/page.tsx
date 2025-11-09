@@ -370,8 +370,8 @@ const ChatBotDemo = () => {
   });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const stickToBottomInstance = useStickToBottom({
-    initial: "smooth",
-    resize: "smooth",
+    initial: "instant",
+    resize: "instant",
   });
 
   // Attach the scrollRef to our scroll container using ref callback
@@ -475,61 +475,86 @@ const ChatBotDemo = () => {
   };
 
   return (
-    <div
-      ref={setScrollRef}
-      className="relative flex h-[calc(100vh-3.5rem)] w-full flex-col overflow-y-auto overflow-x-hidden"
-    >
-      {messages.length === 0 ? (
-        <>
-          <div className="max-w-4xl mx-auto w-full flex flex-col flex-1 px-4 sm:px-6 pt-12">
-            <div className="text-center mb-12">
-              <h1 className="text-2xl sm:text-4xl font-semibold mb-2">
-                Welcome to Better Pilot
-              </h1>
-              <p className="text-sm sm:text-base text-muted-foreground">
-                Your AI-powered GitHub search assistant
-              </p>
-            </div>
+    <div className="relative flex h-[calc(100vh-3.5rem)] w-full flex-col overflow-hidden">
+      <div
+        ref={setScrollRef}
+        className="relative flex flex-1 w-full flex-col overflow-y-auto overflow-x-hidden"
+      >
+        {messages.length === 0 ? (
+          <>
+            <div className="max-w-4xl mx-auto w-full flex flex-col flex-1 px-4 sm:px-6 pt-12 pb-4">
+              <div className="text-center mb-12">
+                <h1 className="text-2xl sm:text-4xl font-semibold mb-2">
+                  Welcome to Better Pilot
+                </h1>
+                <p className="text-sm sm:text-base text-muted-foreground">
+                  Your AI-powered GitHub search assistant
+                </p>
+              </div>
 
-            <div className="hidden sm:grid grid-cols-2 gap-2 sm:gap-3 mb-8 sm:mb-12 max-w-md mx-auto">
-              {features.map((feature, index) => (
-                <Card
-                  key={index}
-                  className="flex flex-col gap-0 py-2 px-3 sm:py-3 sm:px-4 border-border/50"
-                >
-                  <CardHeader className="p-0 pb-1 sm:pb-1.5">
-                    <CardTitle className="text-xs sm:text-sm font-medium leading-tight">
-                      {feature.title}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0 flex items-start">
-                    <CardDescription className="text-[10px] sm:text-xs leading-relaxed">
-                      {feature.description}
-                    </CardDescription>
-                  </CardContent>
-                </Card>
-              ))}
+              <div className="hidden sm:grid grid-cols-2 gap-2 sm:gap-3 mb-8 sm:mb-12 max-w-md mx-auto">
+                {features.map((feature, index) => (
+                  <Card
+                    key={index}
+                    className="flex flex-col gap-0 py-2 px-3 sm:py-3 sm:px-4 border-border/50"
+                  >
+                    <CardHeader className="p-0 pb-1 sm:pb-1.5">
+                      <CardTitle className="text-xs sm:text-sm font-medium leading-tight">
+                        {feature.title}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0 flex items-start">
+                      <CardDescription className="text-[10px] sm:text-xs leading-relaxed">
+                        {feature.description}
+                      </CardDescription>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
-          </div>
+          </>
+        ) : (
+          <>
+            <div className="max-w-4xl mx-auto w-full flex flex-col flex-1 px-4 sm:px-6 pt-6 pb-4">
+              <Conversation instance={stickToBottomInstance}>
+                <ConversationContent>
+                  {messages.map((message) => (
+                    <MessageItem
+                      key={message.id}
+                      message={message as AppUIMessage}
+                      isLastMessage={message.id === lastMessageId}
+                      isStreaming={status === "streaming"}
+                      onRegenerate={handleRegenerate}
+                    />
+                  ))}
+                </ConversationContent>
+                <ConversationScrollButton />
+              </Conversation>
+            </div>
+          </>
+        )}
+      </div>
 
-          <div className="grid shrink-0 gap-4 pt-4 pb-2">
-            <div className="w-full px-2 sm:px-4 pb-4 max-w-4xl mx-auto">
-              {rateLimitError && (
-                <Alert variant="destructive" className="mb-4">
-                  <AlertCircleIcon />
-                  <AlertTitle>Rate Limited</AlertTitle>
-                  <AlertDescription className="inline-block!">
-                    {renderRateLimitError(rateLimitError)}
-                  </AlertDescription>
-                </Alert>
-              )}
-              {botError && (
-                <Alert variant="destructive" className="mb-4">
-                  <AlertCircleIcon />
-                  <AlertTitle>Bot Detected</AlertTitle>
-                  <AlertDescription>{botError}</AlertDescription>
-                </Alert>
-              )}
+      <div className="sticky bottom-0 z-10">
+        <div className="grid shrink-0 gap-4 pt-4 pb-2">
+          <div className="w-full px-2 sm:px-4 pb-4 max-w-4xl mx-auto">
+            {rateLimitError && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircleIcon />
+                <AlertTitle>Rate Limited</AlertTitle>
+                <AlertDescription className="inline-block!">
+                  {renderRateLimitError(rateLimitError)}
+                </AlertDescription>
+              </Alert>
+            )}
+            {botError && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircleIcon />
+                <AlertTitle>Bot Detected</AlertTitle>
+                <AlertDescription>{botError}</AlertDescription>
+              </Alert>
+            )}
+            {messages.length === 0 && (
               <div className="mb-4 min-w-0">
                 <Suggestions>
                   {promptSuggestions.map((suggestion, index) => (
@@ -541,152 +566,59 @@ const ChatBotDemo = () => {
                   ))}
                 </Suggestions>
               </div>
-              <PromptInput onSubmit={handleSubmit} globalDrop multiple>
-                <PromptInputHeader>
-                  <PromptInputAttachments>
-                    {(attachment) => (
-                      <PromptInputAttachment data={attachment} />
-                    )}
-                  </PromptInputAttachments>
-                </PromptInputHeader>
-                <PromptInputBody>
-                  <PromptInputTextarea
-                    onChange={(e) => setInput(e.target.value)}
-                    value={input}
-                  />
-                </PromptInputBody>
-                <PromptInputFooter>
-                  <PromptInputTools>
-                    <PromptInputActionMenu>
-                      <PromptInputActionMenuTrigger />
-                      <PromptInputActionMenuContent>
-                        <PromptInputActionAddAttachments />
-                      </PromptInputActionMenuContent>
-                    </PromptInputActionMenu>
+            )}
+            <PromptInput onSubmit={handleSubmit} globalDrop multiple>
+              <PromptInputHeader>
+                <PromptInputAttachments>
+                  {(attachment) => <PromptInputAttachment data={attachment} />}
+                </PromptInputAttachments>
+              </PromptInputHeader>
+              <PromptInputBody>
+                <PromptInputTextarea
+                  onChange={(e) => setInput(e.target.value)}
+                  value={input}
+                />
+              </PromptInputBody>
+              <PromptInputFooter>
+                <PromptInputTools>
+                  <PromptInputActionMenu>
+                    <PromptInputActionMenuTrigger />
+                    <PromptInputActionMenuContent>
+                      <PromptInputActionAddAttachments />
+                    </PromptInputActionMenuContent>
+                  </PromptInputActionMenu>
 
-                    <PromptInputSelect
-                      onValueChange={(value) => {
-                        setModel(value);
-                      }}
-                      value={model}
-                    >
-                      <PromptInputSelectTrigger>
-                        <PromptInputSelectValue />
-                      </PromptInputSelectTrigger>
-                      <PromptInputSelectContent>
-                        {models.map((model) => (
-                          <PromptInputSelectItem
-                            key={model.value}
-                            value={model.value}
-                          >
-                            {model.name}
-                          </PromptInputSelectItem>
-                        ))}
-                      </PromptInputSelectContent>
-                    </PromptInputSelect>
-                  </PromptInputTools>
-                  <PromptInputSubmit
-                    disabled={!input && !status}
-                    status={status}
-                    onStop={stop}
-                  />
-                </PromptInputFooter>
-              </PromptInput>
-            </div>
+                  <PromptInputSelect
+                    onValueChange={(value) => {
+                      setModel(value);
+                    }}
+                    value={model}
+                  >
+                    <PromptInputSelectTrigger>
+                      <PromptInputSelectValue />
+                    </PromptInputSelectTrigger>
+                    <PromptInputSelectContent>
+                      {models.map((model) => (
+                        <PromptInputSelectItem
+                          key={model.value}
+                          value={model.value}
+                        >
+                          {model.name}
+                        </PromptInputSelectItem>
+                      ))}
+                    </PromptInputSelectContent>
+                  </PromptInputSelect>
+                </PromptInputTools>
+                <PromptInputSubmit
+                  disabled={!input && !status}
+                  status={status}
+                  onStop={stop}
+                />
+              </PromptInputFooter>
+            </PromptInput>
           </div>
-        </>
-      ) : (
-        <>
-          <div className="max-w-4xl mx-auto w-full flex flex-col flex-1 px-4 sm:px-6 pt-6">
-            <Conversation instance={stickToBottomInstance}>
-              <ConversationContent>
-                {messages.map((message) => (
-                  <MessageItem
-                    key={message.id}
-                    message={message as AppUIMessage}
-                    isLastMessage={message.id === lastMessageId}
-                    isStreaming={status === "streaming"}
-                    onRegenerate={handleRegenerate}
-                  />
-                ))}
-              </ConversationContent>
-              <ConversationScrollButton />
-            </Conversation>
-          </div>
-
-          <div className="grid shrink-0 gap-4 pt-4 pb-2">
-            <div className="w-full px-2 sm:px-4 pb-4 max-w-4xl mx-auto">
-              {rateLimitError && (
-                <Alert variant="destructive" className="mb-4">
-                  <AlertCircleIcon />
-                  <AlertTitle>Rate Limited</AlertTitle>
-                  <AlertDescription className="inline-block!">
-                    {renderRateLimitError(rateLimitError)}
-                  </AlertDescription>
-                </Alert>
-              )}
-              {botError && (
-                <Alert variant="destructive" className="mb-4">
-                  <AlertCircleIcon />
-                  <AlertTitle>Bot Detected</AlertTitle>
-                  <AlertDescription>{botError}</AlertDescription>
-                </Alert>
-              )}
-              <PromptInput onSubmit={handleSubmit} globalDrop multiple>
-                <PromptInputHeader>
-                  <PromptInputAttachments>
-                    {(attachment) => (
-                      <PromptInputAttachment data={attachment} />
-                    )}
-                  </PromptInputAttachments>
-                </PromptInputHeader>
-                <PromptInputBody>
-                  <PromptInputTextarea
-                    onChange={(e) => setInput(e.target.value)}
-                    value={input}
-                  />
-                </PromptInputBody>
-                <PromptInputFooter>
-                  <PromptInputTools>
-                    <PromptInputActionMenu>
-                      <PromptInputActionMenuTrigger />
-                      <PromptInputActionMenuContent>
-                        <PromptInputActionAddAttachments />
-                      </PromptInputActionMenuContent>
-                    </PromptInputActionMenu>
-
-                    <PromptInputSelect
-                      onValueChange={(value) => {
-                        setModel(value);
-                      }}
-                      value={model}
-                    >
-                      <PromptInputSelectTrigger>
-                        <PromptInputSelectValue />
-                      </PromptInputSelectTrigger>
-                      <PromptInputSelectContent>
-                        {models.map((model) => (
-                          <PromptInputSelectItem
-                            key={model.value}
-                            value={model.value}
-                          >
-                            {model.name}
-                          </PromptInputSelectItem>
-                        ))}
-                      </PromptInputSelectContent>
-                    </PromptInputSelect>
-                  </PromptInputTools>
-                  <PromptInputSubmit
-                    disabled={!input && !status}
-                    status={status}
-                    onStop={stop}
-                  />
-                </PromptInputFooter>
-              </PromptInput>
-            </div>
-          </div>
-        </>
-      )}
+        </div>
+      </div>
     </div>
   );
 };
