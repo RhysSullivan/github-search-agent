@@ -41,6 +41,7 @@ import { useChat } from "@ai-sdk/react";
 import type { GatewayModelId } from "@ai-sdk/gateway";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { authClient } from "@/lib/auth-client";
+import { track } from "@vercel/analytics";
 import {
   MessageAction,
   MessageActions,
@@ -426,6 +427,21 @@ const ChatBotDemo = () => {
     if (!(hasText || hasAttachments)) {
       return;
     }
+
+    // Track analytics
+    const isFirstMessage = messages.length === 0;
+    if (isFirstMessage) {
+      track("chat_started", {
+        authenticated: isAuthenticated,
+        model: model,
+      });
+    }
+    track("message_sent", {
+      authenticated: isAuthenticated,
+      model: model,
+      hasAttachments: hasAttachments,
+      messageLength: message.text?.length || 0,
+    });
 
     // Clear any previous errors
     setRateLimitError(null);

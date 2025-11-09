@@ -7,6 +7,7 @@ import { NextRequest } from "next/server";
 import { getGitHubToken, getUserId } from "@/lib/auth";
 import { checkRateLimit } from "@vercel/firewall";
 import { Octokit } from "@octokit/rest";
+import { track } from "@vercel/analytics/server";
 
 function buildSystemPrompt(
   isAuthenticated: boolean,
@@ -329,6 +330,34 @@ export async function POST(req: NextRequest) {
           headers: { "Content-Type": "application/json" },
         }
       );
+    }
+
+    // Track analytics
+    const isFirstMessage = messages.length === 1; // Only user message, no assistant response yet
+    const userMessage = messages[messages.length - 1];
+    
+    // Extract text from message parts
+    let messageText = "";
+    if (userMessage?.role === "user" && userMessage.parts) {
+      const textPart = userMessage.parts.find((part) => part.type === "text");
+      if (textPart && "text" in textPart) {
+        messageText = textPart.text || "";
+      }
+    }
+
+    // Track message received on server side
+    track("message_received", {
+      authenticated: isAuthenticated,
+      model: model,
+      messageLength: messageText.length,
+      isFirstMessage: isFirstMessage,
+    });
+
+    if (isFirstMessage) {
+      track("chat_created", {
+        authenticated: isAuthenticated,
+        model: model,
+      });
     }
 
     const githubToken = await getGitHubToken();
