@@ -468,6 +468,7 @@ const ChatBotDemo = () => {
           body: {
             model: model,
             webSearch: webSearch,
+            currentTime: new Date().toISOString(),
           },
         }
       );

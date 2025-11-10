@@ -12,6 +12,7 @@ import { Octokit } from "@octokit/rest";
 
 function buildSystemPrompt(
   isAuthenticated: boolean,
+  currentTime: string,
   userInfo?: {
     login: string;
     name?: string | null;
@@ -86,6 +87,8 @@ ${isAuthenticated ? "- For integration questions: research each component with B
 
   return `${toolRequirements}
 ${userInfoSection}
+
+CURRENT TIME: ${currentTime}
 
 You are a powerful GitHub research assistant with comprehensive tools at your disposal. Use them proactively and in combination to provide complete, accurate answers.
 
@@ -183,7 +186,7 @@ The githubApi tool allows you to make GET requests to ANY GitHub REST API endpoi
 - Reference: https://docs.github.com/en/rest
 
 SANDBOX TOOLS:
-When GitHub search doesn't provide enough detail, use sandbox tools to explore repositories directly. Sandboxes are automatically created and managed.
+Sandbox tools allow you to explore repositories directly by cloning and executing commands. Sandboxes are automatically created and managed.
 
 - runSandboxCommand: Execute any shell command in a sandbox environment
   - List files: command="ls", args=["-la"] or command="find", args=[".", "-type", "f"]
@@ -194,7 +197,14 @@ When GitHub search doesn't provide enough detail, use sandbox tools to explore r
   - Run scripts: command="bun", args=["run", "build"] or command="npm", args=["test"]
   - Optional chatId parameter (defaults to "main"), working directory: /vercel/sandbox
 
-Use sandboxes for: complex code structures, running code, patterns GitHub search misses, build configs, or when GitHub API content retrieval is insufficient.
+**When to use sandboxes:**
+- If it's faster or requires fewer queries than using GitHub API (e.g., reading multiple files, exploring directory structures)
+- When you need to run code, test implementations, or execute scripts
+- For complex code structures, build configs, or patterns GitHub search misses
+- When GitHub API content retrieval is insufficient or requires multiple API calls that could be done more efficiently with direct file access
+- When exploring repository structure, reading documentation files, or analyzing codebases
+
+Prefer sandboxes when they can answer the question more efficiently than multiple GitHub API calls.
 
 PARALLEL TOOL CALLS:
 Make parallel tool calls when operations are independent - it's faster and more efficient!
@@ -263,10 +273,12 @@ export async function POST(req: NextRequest) {
       messages,
       model,
       webSearch,
+      currentTime,
     }: {
       messages: AppUIMessage[];
       model: string;
       webSearch: boolean;
+      currentTime?: string;
     } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
@@ -326,7 +338,11 @@ export async function POST(req: NextRequest) {
 
     const result = streamText({
       model: gateway(model),
-      system: buildSystemPrompt(isAuthenticated, userInfo),
+      system: buildSystemPrompt(
+        isAuthenticated,
+        currentTime || new Date().toISOString(),
+        userInfo
+      ),
       messages: convertToModelMessages(messages),
       tools: {
         githubApi: githubApiProxyTool,
