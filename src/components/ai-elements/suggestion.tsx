@@ -11,8 +11,8 @@ export const Suggestions = ({
   children,
   ...props
 }: SuggestionsProps) => (
-  <div className={cn("w-full min-w-0 overflow-x-auto", className)} {...props}>
-    <div className="flex flex-nowrap items-center gap-2 w-max">
+  <div className={cn("w-full min-w-0", className)} {...props}>
+    <div className="flex flex-col sm:flex-row sm:flex-nowrap items-stretch sm:items-center gap-2 sm:w-max">
       {children}
     </div>
   </div>
@@ -38,7 +38,7 @@ export const Suggestion = ({
 
   return (
     <Button
-      className={cn("cursor-pointer rounded-full px-4", className)}
+      className={cn("cursor-pointer rounded-full px-4 w-full sm:w-auto", className)}
       onClick={handleClick}
       size={size}
       type="button"

@@ -542,7 +542,7 @@ const ChatBotDemo = () => {
   };
 
   return (
-    <div className="relative flex h-[calc(100vh-3.5rem)] w-full flex-col overflow-hidden">
+    <div className="relative flex h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-3.5rem)] w-full flex-col overflow-hidden mobile-viewport-height">
       <div
         ref={setScrollRef}
         className="relative flex flex-1 w-full flex-col overflow-y-auto overflow-x-hidden min-h-0"
@@ -603,8 +603,8 @@ const ChatBotDemo = () => {
       </div>
 
       <div className="sticky bottom-0 z-10 bg-background border-t">
-        <div className="grid shrink-0 gap-2 sm:gap-4 pt-2 sm:pt-4 pb-2">
-          <div className="w-full px-2 sm:px-4 pb-2 sm:pb-4 max-w-4xl mx-auto">
+        <div className="grid shrink-0 gap-2 sm:gap-4 pt-2 sm:pt-4 prompt-input-container sm:pb-2">
+          <div className="w-full px-2 sm:px-4 max-w-4xl mx-auto">
             {rateLimitError && (
               <Alert variant="destructive" className="mb-4">
                 <AlertCircleIcon />

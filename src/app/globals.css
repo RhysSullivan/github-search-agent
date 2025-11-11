@@ -245,3 +245,15 @@
     max-width: 400px;
   }
 }
+
+/* Mobile viewport height fix */
+@supports (height: 100dvh) {
+  .mobile-viewport-height {
+    height: calc(100dvh - 3.5rem);
+  }
+}
+
+/* Safe area inset for mobile bottom padding */
+.prompt-input-container {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
